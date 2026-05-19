@@ -10,13 +10,3 @@ services:
         value: production
       - key: JWT_SECRET
         generateValue: true
-      - key: DATABASE_URL
-        fromDatabase:
-          name: controle-contas-db
-          property: connectionString
-
-  # Banco de Dados MySQL
-  - type: pserv
-    name: controle-contas-db
-    env: docker
-    repo: https://github.com/mysql/mysql-server.git # Apenas como exemplo, o Render suporta PostgreSQL nativo, mas para MySQL usamos Docker ou banco externo.
