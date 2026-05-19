@@ -4,10 +4,12 @@ services:
     env: node
     plan: free
     region: ohio
-    buildCommand: npm install -g pnpm && pnpm install && pnpm build
-    startCommand: pnpm start
+    buildCommand: npm install -g pnpm && pnpm install && pnpm run build
+    startCommand: npm run start
     envVars:
+      - key: NODE_VERSION
+        value: "20.12.2"
       - key: NODE_ENV
         value: production
       - key: JWT_SECRET
-        value: generate_a_secret_here_12345
+        generateValue: true
