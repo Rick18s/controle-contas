@@ -1,12 +1,13 @@
 services:
-  # Servidor da Aplicação
   - type: web
     name: controle-contas-app
     env: node
-    buildCommand: pnpm install && pnpm build
+    plan: free
+    region: ohio
+    buildCommand: npm install -g pnpm && pnpm install && pnpm build
     startCommand: pnpm start
     envVars:
       - key: NODE_ENV
         value: production
       - key: JWT_SECRET
-        generateValue: true
+        value: generate_a_secret_here_12345
