@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1779119773964,
+      "tag": "0000_worried_sharon_carter",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1779119889037,
+      "tag": "0001_boring_northstar",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1779120000000,
+      "tag": "0002_seed_may_2026",
+      "breakpoints": true
+    }
+  ]
+}

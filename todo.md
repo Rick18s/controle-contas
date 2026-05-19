@@ -1,0 +1,26 @@
+# Project TODO
+
+- [x] Database schema: months, expense_cards, expense_items, income_entries, bank_balances tables
+- [x] Apply database migrations via SQL
+- [x] Backend API: month CRUD (create, list, get, delete)
+- [x] Backend API: expense card CRUD (create, update, delete per month)
+- [x] Backend API: expense item CRUD (create, update, delete, change status)
+- [x] Backend API: income entries CRUD (create, update, delete per month)
+- [x] Backend API: bank balances CRUD (get, update per month)
+- [x] Cyberpunk theme: dark background, neon pink/cyan, geometric fonts, glow effects, HUD elements
+- [x] Multi-month navigation: create, view, switch between months
+- [x] Expense cards display: Casa, Cuidados Pessoais, Cartões Pedro, Cartões Débora, Escritório
+- [x] Inline editing: all values editable directly in UI (name, due date, value, paid value, status)
+- [x] Add/remove items within cards
+- [x] Add/remove entire cards/categories per month
+- [x] Income (Entradas) management: add, edit, remove entries with name, value, received status
+- [x] Interactive cash flow timeline: day-by-day nodes colored Verde/Vermelho
+- [x] Bank balances panel: 4 editable accounts persisted in DB
+- [x] Currency exchange calculator: USD/EUR to BRL with configurable rate and fee
+- [x] Summary dashboard: total expenses, total paid, remaining, estimated income
+- [x] Auto-save: all changes saved automatically to database
+- [x] Seed initial data from user's original HTML (May 2026 data)
+- [x] Add month picker dialog to create any month/year (not just current)
+- [x] Persist exchange rate and fee in sessionStorage
+- [x] Auto-save expense/income inline edits via debounce (no manual save button)
+- [x] Fix cash flow timeline labels to show Verde/Vermelho explicitly

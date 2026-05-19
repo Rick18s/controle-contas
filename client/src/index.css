@@ -1,0 +1,141 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: oklch(0.20 0.03 260); /* slate-900 dark blue */
+  --color-foreground: oklch(0.98 0 0); /* white text on bg */
+  --color-card: oklch(0.25 0.03 260);
+  --color-card-foreground: oklch(0.96 0.01 235);
+  --color-popover: oklch(0.23 0.03 260);
+  --color-popover-foreground: oklch(0.96 0.01 235);
+  --color-primary: oklch(0.76 0.16 220);
+  --color-primary-foreground: oklch(0.12 0.03 250);
+  --color-secondary: oklch(0.28 0.03 260);
+  --color-secondary-foreground: oklch(0.94 0.01 235);
+  --color-muted: oklch(0.30 0.03 260);
+  --color-muted-foreground: oklch(0.72 0.03 235);
+  --color-accent: oklch(0.34 0.05 230);
+  --color-accent-foreground: oklch(0.96 0.01 235);
+  --color-destructive: oklch(0.60 0.15 25); /* softer red */
+  --color-destructive-foreground: oklch(0.98 0 0);
+  --color-border: oklch(0.38 0.04 245);
+  --color-input: oklch(0.34 0.04 245);
+  --color-ring: oklch(0.76 0.16 220);
+  
+  --color-chart-1: oklch(0.60 0.15 260);
+  --color-chart-2: oklch(0.65 0.15 200);
+  --color-chart-3: oklch(0.65 0.10 145);
+  --color-chart-4: oklch(0.70 0.13 225);
+  --color-chart-5: oklch(0.60 0.15 300);
+  
+  --color-sidebar: oklch(0.22 0.03 260);
+  --color-sidebar-foreground: oklch(0.96 0.01 235);
+  --color-sidebar-primary: oklch(0.50 0.15 260);
+  --color-sidebar-primary-foreground: oklch(0.98 0 0);
+  --color-sidebar-accent: oklch(0.30 0.03 260);
+  --color-sidebar-accent-foreground: oklch(0.96 0.01 235);
+  --color-sidebar-border: oklch(0.38 0.04 245);
+  --color-sidebar-ring: oklch(0.50 0.15 260);
+  
+  --radius: 0.75rem;
+  --font-sans: 'Plus Jakarta Sans', 'Inter Tight', 'Segoe UI', sans-serif;
+  --font-mono: 'Plus Jakarta Sans', 'Inter Tight', 'Segoe UI', sans-serif;
+  --font-display: 'Inter Tight', 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
+}
+
+:root {
+  --font-sans: 'Plus Jakarta Sans', 'Inter Tight', 'Segoe UI', sans-serif;
+  --font-mono: 'Plus Jakarta Sans', 'Inter Tight', 'Segoe UI', sans-serif;
+  --font-display: 'Inter Tight', 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
+  --bg-deep: #0f172a; /* slate-900 */
+  --bg-surface: #111827;
+  --bg-card: #172033;
+  --border-light: rgba(56, 189, 248, 0.18);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+    background-color: var(--bg-deep);
+    letter-spacing: 0;
+  }
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    letter-spacing: 0;
+  }
+  .bg-card {
+    @apply text-card-foreground;
+  }
+  .font-mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+  }
+}
+
+/* Container customization */
+.container {
+  @apply mx-auto px-4 sm:px-6 lg:px-8;
+  width: 100%;
+  max-width: 1400px;
+}
+
+/* Flat Clean Style - Organizze Inspired */
+.glass-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.glass-card {
+  background: var(--bg-card);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+  transition: all 0.2s ease;
+}
+
+.glass-card:hover {
+  border-color: rgba(56, 189, 248, 0.34);
+  box-shadow: 0 4px 18px rgba(14, 165, 233, 0.12);
+}
+
+/* Modern gradient text */
+.text-gradient {
+  background: linear-gradient(to right, #e0f2fe, #38bdf8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-gradient-primary {
+  background: linear-gradient(135deg, #818cf8 0%, #c084fc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(56, 189, 248, 0.24);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(56, 189, 248, 0.36);
+}
