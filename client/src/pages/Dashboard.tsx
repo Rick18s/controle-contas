@@ -22,6 +22,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import GoalsPanel from "@/components/GoalsPanel";
 import AnalyticsPanel from "@/components/AnalyticsPanel";
 import PaymentSimulator from "@/components/PaymentSimulator";
+import QuickAddDialog from "@/components/QuickAddDialog";
+import { Sparkles } from "lucide-react";
 
 export default function Dashboard() {
   const { user, loading, isAuthenticated, logout } = useAuth();
@@ -30,6 +32,7 @@ export default function Dashboard() {
   const [showMonthPicker, setShowMonthPicker] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [showCopyDialog, setShowCopyDialog] = useState(false);
+  const [showQuickAddDialog, setShowQuickAddDialog] = useState(false);
   const [importText, setImportText] = useState("");
   const [replaceExistingImport, setReplaceExistingImport] = useState(true);
   const [copyTargetMode, setCopyTargetMode] = useState<"new" | "existing">("new");
@@ -647,6 +650,28 @@ function ExpenseCardsSection({ monthId }: { monthId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* FAB Quick Add */}
+      {selectedMonthId && (
+        <>
+          <QuickAddDialog 
+            open={showQuickAddDialog} 
+            onOpenChange={setShowQuickAddDialog} 
+            monthId={selectedMonthId} 
+            onSuccess={() => {
+              exportCardsQuery.refetch();
+              exportIncomeQuery.refetch();
+            }}
+          />
+          <Button
+            onClick={() => setShowQuickAddDialog(true)}
+            className="fixed bottom-6 right-6 w-14 h-14 rounded-full shadow-2xl bg-amber-500 hover:bg-amber-600 text-slate-900 z-50 p-0 flex items-center justify-center transition-transform hover:scale-105 active:scale-95"
+            title="Adição Inteligente"
+          >
+            <Sparkles className="w-6 h-6" />
+          </Button>
+        </>
+      )}
     </div>
   );
 }

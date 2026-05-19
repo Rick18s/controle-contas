@@ -4,6 +4,7 @@ import * as db from "../db";
 import { getDb } from "../db";
 import { months } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
+import { invokeLLM } from "../_core/llm";
 
 export const financeRouter = router({
   // ============ MONTHS ============
@@ -182,6 +183,74 @@ export const financeRouter = router({
       .mutation(async ({ input }) => {
         await db.upsertBalance(input.monthId, input.accountName, input.balance);
         return { success: true };
+      }),
+  }),
+
+  // ============ AI ============
+  ai: router({
+    quickAdd: protectedProcedure
+      .input(z.object({ monthId: z.number(), text: z.string().min(1) }))
+      .mutation(async ({ input }) => {
+        const cards = await db.getCardsByMonth(input.monthId);
+        
+        const cardListText = cards.length > 0 
+          ? cards.map(c => `ID: ${c.id} - Name: ${c.name}`).join("\n") 
+          : "Nenhum cartão existente.";
+
+        const prompt = `Você é um assistente financeiro inteligente. O usuário quer adicionar uma transação.
+Texto digitado: "${input.text}"
+
+Cartões/Categorias de Despesa disponíveis:
+${cardListText}
+
+Sua tarefa:
+1. Decida se é "income" (receita/ganho) ou "expense" (despesa/gasto).
+2. Extraia o nome da transação e o valor numérico.
+3. Se for "expense", escolha o ID do cartão mais apropriado da lista acima.
+4. Se for "expense" e não houver cartão adequado, retorne cardId como nulo e sugira um nome curto em "newCardName" (ex: "Pet", "Saúde").
+5. Se for "income", cardId e newCardName devem ser nulos.`;
+
+        const response = await invokeLLM({
+          messages: [{ role: "user", content: prompt }],
+          outputSchema: {
+            name: "transaction_details",
+            schema: {
+              type: "object",
+              properties: {
+                transactionType: { type: "string", enum: ["income", "expense"] },
+                name: { type: "string" },
+                value: { type: "number" },
+                cardId: { type: ["number", "null"] },
+                newCardName: { type: ["string", "null"] }
+              },
+              required: ["transactionType", "name", "value"]
+            }
+          }
+        });
+
+        const rawResult = response.choices[0].message.content as string;
+        let result;
+        try {
+          result = JSON.parse(rawResult);
+        } catch (e) {
+          throw new Error("Falha ao interpretar resposta da IA");
+        }
+
+        if (result.transactionType === "income") {
+          return db.createIncome(input.monthId, { name: result.name, value: String(result.value), received: 0 });
+        } else {
+          let cardId = result.cardId;
+          if (!cardId && result.newCardName) {
+            const newCard = await db.createCard(input.monthId, result.newCardName, "✨");
+            cardId = newCard.id;
+          } else if (!cardId && cards.length > 0) {
+            cardId = cards[0].id; // Fallback
+          } else if (!cardId) {
+             const newCard = await db.createCard(input.monthId, "Outros", "📦");
+             cardId = newCard.id;
+          }
+          return db.createItem(cardId, { name: result.name, value: String(result.value), status: "pendente" });
+        }
       }),
   }),
 });
