@@ -11,5 +11,9 @@ services:
         value: "22.14.0"
       - key: NODE_ENV
         value: production
+      - key: LOCAL_AUTH_USERNAME
+        value: "pedro"
+      - key: LOCAL_AUTH_PASSWORD
+        value: "pedro123"
       - key: JWT_SECRET
         generateValue: true
