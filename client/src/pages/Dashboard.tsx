@@ -566,6 +566,28 @@ export default function Dashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* FAB Quick Add */}
+      {selectedMonthId && (
+        <>
+          <QuickAddDialog 
+            open={showQuickAddDialog} 
+            onOpenChange={setShowQuickAddDialog} 
+            monthId={selectedMonthId} 
+            onSuccess={() => {
+              exportCardsQuery.refetch();
+              exportIncomeQuery.refetch();
+            }}
+          />
+          <Button
+            onClick={() => setShowQuickAddDialog(true)}
+            className="fixed bottom-6 right-6 w-14 h-14 rounded-full shadow-2xl bg-amber-500 hover:bg-amber-600 text-slate-900 z-50 p-0 flex items-center justify-center transition-transform hover:scale-105 active:scale-95"
+            title="Adição Inteligente"
+          >
+            <Sparkles className="w-6 h-6" />
+          </Button>
+        </>
+      )}
     </div>
   );
 }
@@ -651,27 +673,6 @@ function ExpenseCardsSection({ monthId }: { monthId: number }) {
         </DialogContent>
       </Dialog>
 
-      {/* FAB Quick Add */}
-      {selectedMonthId && (
-        <>
-          <QuickAddDialog 
-            open={showQuickAddDialog} 
-            onOpenChange={setShowQuickAddDialog} 
-            monthId={selectedMonthId} 
-            onSuccess={() => {
-              exportCardsQuery.refetch();
-              exportIncomeQuery.refetch();
-            }}
-          />
-          <Button
-            onClick={() => setShowQuickAddDialog(true)}
-            className="fixed bottom-6 right-6 w-14 h-14 rounded-full shadow-2xl bg-amber-500 hover:bg-amber-600 text-slate-900 z-50 p-0 flex items-center justify-center transition-transform hover:scale-105 active:scale-95"
-            title="Adição Inteligente"
-          >
-            <Sparkles className="w-6 h-6" />
-          </Button>
-        </>
-      )}
     </div>
   );
 }
