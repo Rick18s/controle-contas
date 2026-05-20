@@ -1,17 +1,11 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, ChevronLeft, ChevronRight, LogOut, CalendarPlus, Copy, Download, ClipboardPaste } from "lucide-react";
 import { toast } from "sonner";
 import ExpenseCard from "@/components/ExpenseCard";
-import IncomePanel from "@/components/IncomePanel";
-import BankBalances from "@/components/BankBalances";
-import CashFlowTimeline from "@/components/CashFlowTimeline";
-import CurrencyCalculator from "@/components/CurrencyCalculator";
-import SummaryDashboard from "@/components/SummaryDashboard";
-import AdminUsersPanel from "@/components/AdminUsersPanel";
 import AccountAccessBar from "@/components/AccountAccessBar";
 import MonthPickerDialog from "@/components/MonthPickerDialog";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -19,15 +13,30 @@ import { Textarea } from "@/components/ui/textarea";
 import { inferCardIcon } from "@/lib/cardIcons";
 import { CardCategoryIcon } from "@/components/CardCategoryIcon";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import GoalsPanel from "@/components/GoalsPanel";
-import AnalyticsPanel from "@/components/AnalyticsPanel";
-import PaymentSimulator from "@/components/PaymentSimulator";
-import QuickAddDialog from "@/components/QuickAddDialog";
-import OfxImportPanel from "@/components/OfxImportPanel";
 import OnboardingTutorial from "@/components/OnboardingTutorial";
 import BrandLogo from "@/components/BrandLogo";
-import BankStatementPanel from "@/components/BankStatementPanel";
 import { Sparkles } from "lucide-react";
+
+const SummaryDashboard = lazy(() => import("@/components/SummaryDashboard"));
+const CashFlowTimeline = lazy(() => import("@/components/CashFlowTimeline"));
+const PaymentSimulator = lazy(() => import("@/components/PaymentSimulator"));
+const IncomePanel = lazy(() => import("@/components/IncomePanel"));
+const OfxImportPanel = lazy(() => import("@/components/OfxImportPanel"));
+const GoalsPanel = lazy(() => import("@/components/GoalsPanel"));
+const AnalyticsPanel = lazy(() => import("@/components/AnalyticsPanel"));
+const BankBalances = lazy(() => import("@/components/BankBalances"));
+const CurrencyCalculator = lazy(() => import("@/components/CurrencyCalculator"));
+const BankStatementPanel = lazy(() => import("@/components/BankStatementPanel"));
+const AdminUsersPanel = lazy(() => import("@/components/AdminUsersPanel"));
+const QuickAddDialog = lazy(() => import("@/components/QuickAddDialog"));
+
+function PanelFallback() {
+  return (
+    <div className="rounded-2xl border border-white/5 bg-zinc-900/60 p-8 text-center text-xs font-mono text-muted-foreground">
+      Carregando painel...
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const { user, loading, isAuthenticated, logout } = useAuth();
@@ -37,6 +46,7 @@ export default function Dashboard() {
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [showCopyDialog, setShowCopyDialog] = useState(false);
   const [showQuickAddDialog, setShowQuickAddDialog] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview");
   const [importText, setImportText] = useState("");
   const [replaceExistingImport, setReplaceExistingImport] = useState(true);
   const [copyTargetMode, setCopyTargetMode] = useState<"new" | "existing">("new");
@@ -424,7 +434,7 @@ export default function Dashboard() {
             </Button>
           </div>
         ) : (
-          <Tabs defaultValue="overview" className="w-full space-y-4 sm:space-y-6">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-4 sm:space-y-6">
             <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
               <AccountAccessBar isAdmin={canManageOrganization} onOrganizationChange={() => setSelectedMonthId(null)} />
               <TabsList className="flex h-auto w-full overflow-x-auto whitespace-nowrap justify-start sm:w-auto pb-1">
@@ -444,54 +454,58 @@ export default function Dashboard() {
               </TabsList>
             </div>
 
-            <TabsContent value="overview" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
-              <SummaryDashboard monthId={selectedMonthId} />
-            </TabsContent>
-
-            <TabsContent value="priorities" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
-              <CashFlowTimeline monthId={selectedMonthId} />
-            </TabsContent>
-
-            <TabsContent value="simulator" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
-              <PaymentSimulator monthId={selectedMonthId} />
-            </TabsContent>
-
-            <TabsContent value="expenses" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
-              <ExpenseCardsSection monthId={selectedMonthId} />
-            </TabsContent>
-
-            <TabsContent value="income" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
-              <IncomePanel monthId={selectedMonthId} />
-            </TabsContent>
-
-            <TabsContent value="import" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
-              <OfxImportPanel monthId={selectedMonthId} />
-            </TabsContent>
-
-            <TabsContent value="goals" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
-              <GoalsPanel />
-            </TabsContent>
-
-            <TabsContent value="analytics" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
-              <AnalyticsPanel />
-            </TabsContent>
-
-            <TabsContent value="balances" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <BankBalances monthId={selectedMonthId} />
-                <CurrencyCalculator />
-              </div>
-            </TabsContent>
-
-            <TabsContent value="statement" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
-              <BankStatementPanel monthId={selectedMonthId} />
-            </TabsContent>
-
-            {canManageOrganization && (
-              <TabsContent value="admin" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
-                <AdminUsersPanel />
+            <Suspense fallback={<PanelFallback />}>
+              <TabsContent value="overview" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
+                {activeTab === "overview" && <SummaryDashboard monthId={selectedMonthId} />}
               </TabsContent>
-            )}
+
+              <TabsContent value="priorities" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
+                {activeTab === "priorities" && <CashFlowTimeline monthId={selectedMonthId} />}
+              </TabsContent>
+
+              <TabsContent value="simulator" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
+                {activeTab === "simulator" && <PaymentSimulator monthId={selectedMonthId} />}
+              </TabsContent>
+
+              <TabsContent value="expenses" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
+                {activeTab === "expenses" && <ExpenseCardsSection monthId={selectedMonthId} />}
+              </TabsContent>
+
+              <TabsContent value="income" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
+                {activeTab === "income" && <IncomePanel monthId={selectedMonthId} />}
+              </TabsContent>
+
+              <TabsContent value="import" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
+                {activeTab === "import" && <OfxImportPanel monthId={selectedMonthId} />}
+              </TabsContent>
+
+              <TabsContent value="goals" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
+                {activeTab === "goals" && <GoalsPanel />}
+              </TabsContent>
+
+              <TabsContent value="analytics" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
+                {activeTab === "analytics" && <AnalyticsPanel />}
+              </TabsContent>
+
+              <TabsContent value="balances" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
+                {activeTab === "balances" && (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <BankBalances monthId={selectedMonthId} />
+                    <CurrencyCalculator />
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="statement" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
+                {activeTab === "statement" && <BankStatementPanel monthId={selectedMonthId} />}
+              </TabsContent>
+
+              {canManageOrganization && (
+                <TabsContent value="admin" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
+                  {activeTab === "admin" && <AdminUsersPanel />}
+                </TabsContent>
+              )}
+            </Suspense>
           </Tabs>
         )}
       </main>
@@ -593,15 +607,19 @@ export default function Dashboard() {
       {/* FAB Quick Add */}
       {selectedMonthId && (
         <>
-          <QuickAddDialog 
-            open={showQuickAddDialog} 
-            onOpenChange={setShowQuickAddDialog} 
-            monthId={selectedMonthId} 
-            onSuccess={() => {
-              exportCardsQuery.refetch();
-              exportIncomeQuery.refetch();
-            }}
-          />
+          {showQuickAddDialog && (
+            <Suspense fallback={null}>
+              <QuickAddDialog
+                open={showQuickAddDialog}
+                onOpenChange={setShowQuickAddDialog}
+                monthId={selectedMonthId}
+                onSuccess={() => {
+                  exportCardsQuery.refetch();
+                  exportIncomeQuery.refetch();
+                }}
+              />
+            </Suspense>
+          )}
           <Button
             onClick={() => setShowQuickAddDialog(true)}
             className="fixed bottom-4 right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-blue-600 p-0 text-white shadow-2xl shadow-purple-500/30 transition-transform hover:scale-105 hover:shadow-purple-500/50 active:scale-95 sm:bottom-6 sm:right-6 sm:h-14 sm:w-14"

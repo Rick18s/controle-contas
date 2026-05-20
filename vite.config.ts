@@ -151,12 +151,12 @@ function vitePluginManusDebugCollector(): Plugin {
   };
 }
 
+const isProductionBuild = process.env.NODE_ENV === "production";
+
 const plugins = [
   react(),
   tailwindcss(),
-  jsxLocPlugin(),
-  vitePluginManusRuntime(),
-  vitePluginManusDebugCollector(),
+  ...(!isProductionBuild ? [jsxLocPlugin(), vitePluginManusRuntime(), vitePluginManusDebugCollector()] : []),
   VitePWA({
     registerType: "autoUpdate",
     includeAssets: ["favicon.svg", "pwa-192x192.png", "pwa-512x512.png"],
@@ -198,6 +198,16 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ["react", "react-dom"],
+          trpc: ["@trpc/client", "@trpc/react-query", "@tanstack/react-query", "superjson"],
+          charts: ["recharts"],
+          ui: ["@radix-ui/react-dialog", "@radix-ui/react-select", "@radix-ui/react-tabs", "@radix-ui/react-tooltip"],
+        },
+      },
+    },
   },
   server: {
     host: true,
