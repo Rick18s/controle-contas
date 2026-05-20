@@ -15,9 +15,16 @@ interface QuickAddDialogProps {
 
 export default function QuickAddDialog({ open, onOpenChange, monthId, onSuccess }: QuickAddDialogProps) {
   const [text, setText] = useState("");
+  const utils = trpc.useUtils();
   const quickAdd = trpc.ai.quickAdd.useMutation({
-    onSuccess: () => {
-      toast.success("Adicionado magicamente! ✨");
+    onSuccess: async (result) => {
+      await Promise.all([
+        utils.cards.list.invalidate({ monthId }),
+        utils.income.list.invalidate({ monthId }),
+        utils.balances.list.invalidate({ monthId }),
+        utils.months.getAnalytics.invalidate(),
+      ]);
+      toast.success(`${result.name} adicionado`);
       setText("");
       onOpenChange(false);
       onSuccess();

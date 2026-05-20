@@ -421,7 +421,7 @@ export default function Dashboard() {
         ) : (
           <Tabs defaultValue="overview" className="w-full space-y-6">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <AccountAccessBar isAdmin={canManageOrganization} />
+              <AccountAccessBar isAdmin={canManageOrganization} onOrganizationChange={() => setSelectedMonthId(null)} />
               <TabsList className="grid w-full sm:w-auto grid-cols-4 lg:grid-cols-6 h-auto">
                 <TabsTrigger value="overview" className="text-xs sm:text-sm py-2">Visão Geral</TabsTrigger>
                 <TabsTrigger value="expenses" className="text-xs sm:text-sm py-2">Despesas</TabsTrigger>

@@ -110,6 +110,61 @@ async function requireGoalInActiveOrganization(ctx: { user: NonNullable<TrpcCont
   return goal;
 }
 
+type QuickAddResult = {
+  transactionType: "income" | "expense";
+  name: string;
+  value: number;
+  cardId: number | null;
+  newCardName: string | null;
+};
+
+function normalizeText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function parseQuickAddText(text: string, cards: Awaited<ReturnType<typeof db.getCardsByMonth>>): QuickAddResult | null {
+  const trimmed = text.trim();
+  const moneyMatch = trimmed.match(/(?:r\$\s*)?(\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)\s*(?:reais|real|rs)?/i);
+  if (!moneyMatch) return null;
+
+  const rawValue = moneyMatch[1];
+  const normalizedValue = rawValue.includes(",")
+    ? rawValue.replace(/\./g, "").replace(",", ".")
+    : rawValue;
+  const value = Number.parseFloat(normalizedValue);
+  if (!Number.isFinite(value) || value <= 0) return null;
+
+  const before = trimmed.slice(0, moneyMatch.index).trim();
+  const after = trimmed.slice((moneyMatch.index ?? 0) + moneyMatch[0].length).trim();
+  const name = (before || after || "Lançamento").replace(/^(paguei|pagar|comprei|compra|recebi|receita|entrada|ganhei)\s+/i, "").trim();
+  const normalized = normalizeText(trimmed);
+  const transactionType: QuickAddResult["transactionType"] = /\b(recebi|receita|entrada|ganhei|cliente|faturamento)\b/.test(normalized)
+    ? "income"
+    : "expense";
+
+  const cardHints: Array<{ pattern: RegExp; words: string[] }> = [
+    { pattern: /\b(cartao|cartoes|credito|nubank|itau|inter|picpay|c6|sofisa|xp|sams)\b/, words: ["cart"] },
+    { pattern: /\b(casa|aluguel|feira|mercado|energia|condominio|internet|combustivel|faxina)\b/, words: ["casa"] },
+    { pattern: /\b(cabelo|pessoal|cuidados|saude|academia|roupa)\b/, words: ["pessoal", "cuidado"] },
+    { pattern: /\b(escritorio|empresa|contabilidade|simples|imposto|cliente|funcionario|salario)\b/, words: ["empresa", "escritorio"] },
+  ];
+  const matchingHint = cardHints.find(hint => hint.pattern.test(normalized));
+  const cardId = matchingHint
+    ? cards.find(card => matchingHint.words.some(word => normalizeText(card.name).includes(word)))?.id ?? null
+    : null;
+
+  return {
+    transactionType,
+    name: name || "Lançamento",
+    value,
+    cardId,
+    newCardName: transactionType === "expense" && !cardId ? "Outros" : null,
+  };
+}
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -624,14 +679,18 @@ export const appRouter = router({
   ai: router({
     quickAdd: protectedProcedure
       .input(z.object({ monthId: z.number(), text: z.string().min(1) }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
+        await requireCanEdit(ctx);
+        await requireMonthInActiveOrganization(ctx, input.monthId);
         const cards = await db.getCardsByMonth(input.monthId);
+        let result = parseQuickAddText(input.text, cards);
         
-        const cardListText = cards.length > 0 
-          ? cards.map(c => `ID: ${c.id} - Name: ${c.name}`).join("\n") 
-          : "Nenhum cartão existente.";
+        if (!result) {
+          const cardListText = cards.length > 0
+            ? cards.map(c => `ID: ${c.id} - Name: ${c.name}`).join("\n")
+            : "Nenhum cartão existente.";
 
-        const prompt = `Você é um assistente financeiro inteligente. O usuário quer adicionar uma transação.
+          const prompt = `Você é um assistente financeiro inteligente. O usuário quer adicionar uma transação.
 Texto digitado: "${input.text}"
 
 Cartões/Categorias de Despesa disponíveis:
@@ -644,47 +703,59 @@ Sua tarefa:
 4. Se for "expense" e não houver cartão adequado, retorne cardId como nulo e sugira um nome curto em "newCardName" (ex: "Pet", "Saúde").
 5. Se for "income", cardId e newCardName devem ser nulos.`;
 
-        const response = await invokeLLM({
-          messages: [{ role: "user", content: prompt }],
-          outputSchema: {
-            name: "transaction_details",
-            schema: {
-              type: "object",
-              properties: {
-                transactionType: { type: "string", enum: ["income", "expense"] },
-                name: { type: "string" },
-                value: { type: "number" },
-                cardId: { type: ["number", "null"] },
-                newCardName: { type: ["string", "null"] }
-              },
-              required: ["transactionType", "name", "value"]
-            }
+          try {
+            const response = await invokeLLM({
+              messages: [{ role: "user", content: prompt }],
+              outputSchema: {
+                name: "transaction_details",
+                schema: {
+                  type: "object",
+                  properties: {
+                    transactionType: { type: "string", enum: ["income", "expense"] },
+                    name: { type: "string" },
+                    value: { type: "number" },
+                    cardId: { type: ["number", "null"] },
+                    newCardName: { type: ["string", "null"] }
+                  },
+                  required: ["transactionType", "name", "value"]
+                }
+              }
+            });
+            const rawResult = response.choices[0].message.content as string;
+            result = JSON.parse(rawResult) as QuickAddResult;
+          } catch {
+            throw new Error("Não consegui entender esse lançamento. Tente algo como: Pastel 40 reais");
           }
-        });
+        }
 
-        const rawResult = response.choices[0].message.content as string;
-        let result;
-        try {
-          result = JSON.parse(rawResult);
-        } catch (e) {
-          throw new Error("Falha ao interpretar resposta da IA");
+        if (!result || !Number.isFinite(result.value) || result.value <= 0) {
+          throw new Error("Informe um nome e valor. Exemplo: Pastel 40 reais");
         }
 
         if (result.transactionType === "income") {
-          return db.createIncome(input.monthId, { name: result.name, value: String(result.value), received: 0 });
-        } else {
-          let cardId = result.cardId;
-          if (!cardId && result.newCardName) {
+          const created = await db.createIncome(input.monthId, { name: result.name, value: result.value.toFixed(2), received: 0 });
+          return { type: "income", id: created.id, name: result.name, value: result.value };
+        }
+
+        let cardId = result.cardId;
+        if (!cardId && result.newCardName) {
+          const existingCard = cards.find(card => normalizeText(card.name) === normalizeText(result.newCardName || ""));
+          if (existingCard) {
+            cardId = existingCard.id;
+          } else {
             const newCard = await db.createCard(input.monthId, result.newCardName, "✨");
             cardId = newCard.id;
-          } else if (!cardId && cards.length > 0) {
-            cardId = cards[0].id; // Fallback
-          } else if (!cardId) {
-             const newCard = await db.createCard(input.monthId, "Outros", "📦");
-             cardId = newCard.id;
           }
-          return db.createItem(cardId, { name: result.name, value: String(result.value), status: "pendente" });
+        } else if (!cardId && cards.length > 0) {
+          const outrosCard = cards.find(card => normalizeText(card.name).includes("outro"));
+          cardId = outrosCard?.id ?? cards[0].id;
+        } else if (!cardId) {
+          const newCard = await db.createCard(input.monthId, "Outros", "📦");
+          cardId = newCard.id;
         }
+
+        const created = await db.createItem(cardId, { name: result.name, value: result.value.toFixed(2), status: "pendente" });
+        return { type: "expense", id: created.id, cardId, name: result.name, value: result.value };
       }),
   }),
 });

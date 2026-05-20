@@ -6,11 +6,12 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
 
-export default function AccountAccessBar({ isAdmin }: { isAdmin: boolean }) {
+export default function AccountAccessBar({ isAdmin, onOrganizationChange }: { isAdmin: boolean; onOrganizationChange?: () => void }) {
   const utils = trpc.useUtils();
   const orgsQuery = trpc.organizations.list.useQuery();
   const setActiveOrg = trpc.organizations.setActive.useMutation({
     onSuccess: async () => {
+      onOrganizationChange?.();
       await utils.invalidate();
       toast.success("Organização alterada");
     },
