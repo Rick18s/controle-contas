@@ -64,7 +64,7 @@ export default function AccountAccessBar({ isAdmin, onOrganizationChange }: { is
   };
 
   return (
-    <section className="rounded-lg border border-border bg-card glass-card hover:border-primary/50 p-3">
+    <section className="w-full rounded-lg border border-border bg-card glass-card p-3 hover:border-primary/50 sm:w-auto">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-2 min-w-0">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-cyan-500/40 bg-primary/10 text-primary">
@@ -77,7 +77,7 @@ export default function AccountAccessBar({ isAdmin, onOrganizationChange }: { is
               onValueChange={(val) => setActiveOrg.mutate({ organizationId: Number(val) })}
               disabled={setActiveOrg.isPending || organizations.length === 0}
             >
-              <SelectTrigger className="min-w-[220px] h-[34px] bg-background text-xs font-mono">
+              <SelectTrigger className="h-[34px] w-full bg-background text-xs font-mono sm:min-w-[220px]">
                 <SelectValue placeholder="Selecione uma organização" />
               </SelectTrigger>
               <SelectContent>
@@ -89,7 +89,7 @@ export default function AccountAccessBar({ isAdmin, onOrganizationChange }: { is
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
           {isAdmin && (
             <Button variant="ghost" size="sm" onClick={() => setShowCreateOrg(true)} className="h-8 px-2 text-primary hover:text-primary/80 text-xs gap-1">
               <Plus className="h-3 w-3" /> Organização

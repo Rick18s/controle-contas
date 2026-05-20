@@ -45,16 +45,16 @@ export default function SummaryDashboard({ monthId }: { monthId: number }) {
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+    <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 lg:grid-cols-6">
       {summaryCards.map((card, idx) => (
         <div
           key={idx}
-          className="rounded-2xl p-4 text-center bg-card border border-border shadow-sm"
+          className="rounded-lg border border-border bg-card p-3 text-center shadow-sm sm:p-4"
         >
-          <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
+          <div className="mb-2 text-[9px] font-medium uppercase tracking-wider text-muted-foreground sm:text-[10px]">
             {card.label}
           </div>
-          <div className={`text-sm md:text-base font-bold font-mono ${card.color}`} >
+          <div className={`text-xs font-bold font-mono sm:text-sm md:text-base ${card.color}`} >
             {card.value}
           </div>
         </div>

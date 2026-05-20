@@ -280,7 +280,7 @@ function ItemRow({ item, isEditing, onEdit, onClose, onRefresh, onDelete }: {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="space-y-1">
             <Label className="text-[10px] uppercase text-muted-foreground">Valor (R$)</Label>
             <input
@@ -371,7 +371,7 @@ function ItemRow({ item, isEditing, onEdit, onClose, onRefresh, onDelete }: {
 
   return (
     <div
-      className="flex items-center justify-between px-4 py-3 cursor-pointer transition-colors hover:bg-cyan-400/[0.05] border-b border-border last:border-0"
+      className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 cursor-pointer transition-colors hover:bg-cyan-400/[0.05] border-b border-border last:border-0 gap-2 sm:gap-0"
       onClick={onEdit}
     >
       <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -397,7 +397,7 @@ function ItemRow({ item, isEditing, onEdit, onClose, onRefresh, onDelete }: {
         </div>
         </div>
       </div>
-      <div className="flex items-center gap-3 ml-2">
+      <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto sm:ml-2 mt-1 sm:mt-0">
         <span className={`text-sm font-medium ${isPaid ? 'text-green-600' : 'text-foreground'}`}>
           {formatBrl(parseMoney(item.value))}
         </span>

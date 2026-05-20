@@ -311,13 +311,13 @@ export default function Dashboard() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b border-border/30 sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex items-center justify-between h-14">
-          <h1 className="text-base font-black tracking-normal text-primary" >
+        <div className="container flex flex-wrap items-center justify-between gap-2 py-2 sm:h-14 sm:flex-nowrap sm:py-0">
+          <h1 className="shrink-0 whitespace-nowrap text-sm font-black tracking-normal text-primary sm:text-base" >
             CONTROLE DE CONTAS
           </h1>
 
           {/* Month Navigation */}
-          <div className="flex items-center gap-1">
+          <div className="order-3 flex w-full items-center justify-center gap-1 overflow-x-auto pb-1 sm:order-none sm:w-auto sm:justify-start sm:overflow-visible sm:pb-0">
             <Button
               variant="ghost"
               size="sm"
@@ -328,7 +328,7 @@ export default function Dashboard() {
               <ChevronLeft className="w-4 h-4" />
             </Button>
 
-            <div className="px-3 py-1 rounded font-mono text-sm text-primary border border-border rounded-md min-w-[110px] text-center" style={{ background: 'var(--bg-card)' }}>
+            <div className="min-w-[96px] rounded-md border border-border px-2 py-1 text-center font-mono text-xs text-primary sm:min-w-[110px] sm:px-3 sm:text-sm" style={{ background: 'var(--bg-card)' }}>
               {selectedMonth ? formatMonthLabel(selectedMonth.label) : "—"}
             </div>
 
@@ -402,7 +402,7 @@ export default function Dashboard() {
             )}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <span className="text-xs font-mono text-gray-500 hidden md:block">{user?.name}</span>
             <Button variant="ghost" size="sm" onClick={logout} className="text-gray-400 hover:text-red-400 h-8 w-8 p-0">
               <LogOut className="w-4 h-4" />
@@ -412,7 +412,7 @@ export default function Dashboard() {
       </header>
 
       {/* Main Content */}
-      <main className="container py-6 space-y-6">
+      <main className="container py-4 space-y-4 sm:py-6 sm:space-y-6">
         {!selectedMonthId ? (
           <div className="flex flex-col items-center justify-center py-20 space-y-6">
             <p className="text-gray-500 font-mono text-sm">Nenhum mês selecionado</p>
@@ -421,18 +421,18 @@ export default function Dashboard() {
             </Button>
           </div>
         ) : (
-          <Tabs defaultValue="overview" className="w-full space-y-6">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <Tabs defaultValue="overview" className="w-full space-y-4 sm:space-y-6">
+            <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
               <AccountAccessBar isAdmin={canManageOrganization} onOrganizationChange={() => setSelectedMonthId(null)} />
-              <TabsList className="grid w-full sm:w-auto grid-cols-4 lg:grid-cols-6 h-auto">
-                <TabsTrigger value="overview" className="text-xs sm:text-sm py-2">Visão Geral</TabsTrigger>
-                <TabsTrigger value="expenses" className="text-xs sm:text-sm py-2">Despesas</TabsTrigger>
-                <TabsTrigger value="income" className="text-xs sm:text-sm py-2">Receitas</TabsTrigger>
-                <TabsTrigger value="goals" className="text-xs sm:text-sm py-2">Metas</TabsTrigger>
-                <TabsTrigger value="analytics" className="text-xs sm:text-sm py-2">Análises</TabsTrigger>
-                <TabsTrigger value="balances" className="text-xs sm:text-sm py-2">Saldos</TabsTrigger>
+              <TabsList className="flex h-auto w-full overflow-x-auto whitespace-nowrap justify-start sm:w-auto pb-1">
+                <TabsTrigger value="overview" className="text-xs sm:text-sm py-2 px-3">Visão Geral</TabsTrigger>
+                <TabsTrigger value="expenses" className="text-xs sm:text-sm py-2 px-3">Despesas</TabsTrigger>
+                <TabsTrigger value="income" className="text-xs sm:text-sm py-2 px-3">Receitas</TabsTrigger>
+                <TabsTrigger value="goals" className="text-xs sm:text-sm py-2 px-3">Metas</TabsTrigger>
+                <TabsTrigger value="analytics" className="text-xs sm:text-sm py-2 px-3">Análises</TabsTrigger>
+                <TabsTrigger value="balances" className="text-xs sm:text-sm py-2 px-3">Saldos</TabsTrigger>
                 {canManageOrganization && (
-                  <TabsTrigger value="admin" className="text-xs sm:text-sm py-2">Admin</TabsTrigger>
+                  <TabsTrigger value="admin" className="text-xs sm:text-sm py-2 px-3">Admin</TabsTrigger>
                 )}
               </TabsList>
             </div>
@@ -583,10 +583,10 @@ export default function Dashboard() {
           />
           <Button
             onClick={() => setShowQuickAddDialog(true)}
-            className="fixed bottom-6 right-6 w-14 h-14 rounded-full shadow-2xl bg-amber-500 hover:bg-amber-600 text-slate-900 z-50 p-0 flex items-center justify-center transition-transform hover:scale-105 active:scale-95"
+            className="fixed bottom-4 right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-amber-500 p-0 text-slate-900 shadow-2xl transition-transform hover:scale-105 hover:bg-amber-600 active:scale-95 sm:bottom-6 sm:right-6 sm:h-14 sm:w-14"
             title="Adição Inteligente"
           >
-            <Sparkles className="w-6 h-6" />
+            <Sparkles className="h-5 w-5 sm:h-6 sm:w-6" />
           </Button>
         </>
       )}
