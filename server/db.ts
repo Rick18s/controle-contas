@@ -376,8 +376,8 @@ export async function ensureDefaultOrganizationForUser(userId: number, displayNa
   const result = await db.insert(organizations).values({
     name: displayName ? `${displayName} - Contas` : "Centro de Contas",
     ownerUserId: userId,
-  });
-  const organizationId = result[0].insertId;
+  }).returning({ id: organizations.id });
+  const organizationId = result[0].id;
   await db.insert(organizationMembers).values({ organizationId, userId, role: "admin" });
   const created = await db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1);
   return created[0];
@@ -407,8 +407,8 @@ export async function createOrganization(ownerUserId: number, name: string) {
     persistMemoryData();
     return org;
   }
-  const result = await db.insert(organizations).values({ name, ownerUserId });
-  const organizationId = result[0].insertId;
+  const result = await db.insert(organizations).values({ name, ownerUserId }).returning({ id: organizations.id });
+  const organizationId = result[0].id;
   await db.insert(organizationMembers).values({ organizationId, userId: ownerUserId, role: "admin" });
   const created = await db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1);
   return created[0];
@@ -580,8 +580,8 @@ export async function createMonth(userId: number, label: string, organizationId?
   const orgId = organizationId ?? (await getDefaultOrganizationForUser(userId)).id;
   const db = await getDb();
   if (!db) return createMemoryMonth(userId, label, orgId);
-  const result = await db.insert(months).values({ userId, organizationId: orgId, label });
-  return { id: result[0].insertId, userId, organizationId: orgId, label };
+  const result = await db.insert(months).values({ userId, organizationId: orgId, label }).returning({ id: months.id });
+  return { id: result[0].id, userId, organizationId: orgId, label };
 }
 
 export async function getMonthById(monthId: number) {
@@ -640,8 +640,8 @@ export async function createCard(monthId: number, name: string, icon: string = "
     persistMemoryData();
     return card;
   }
-  const result = await db.insert(expenseCards).values({ monthId, name, icon });
-  return { id: result[0].insertId, monthId, name, icon };
+  const result = await db.insert(expenseCards).values({ monthId, name, icon }).returning({ id: expenseCards.id });
+  return { id: result[0].id, monthId, name, icon };
 }
 
 export async function updateCard(cardId: number, data: { name?: string; icon?: string }) {
@@ -711,8 +711,8 @@ export async function createItem(cardId: number, data: { name: string; dueDate?:
     paidValue: data.paidValue || "0.00",
     paidAccountName: data.paidAccountName ?? null,
     status: data.status || "pendente",
-  });
-  return { id: result[0].insertId };
+  }).returning({ id: expenseItems.id });
+  return { id: result[0].id };
 }
 
 export async function updateItem(itemId: number, data: { name?: string; dueDate?: string; value?: string; paidValue?: string; paidAccountName?: string | null; status?: "pago" | "parcial" | "pendente" }) {
@@ -774,8 +774,8 @@ export async function createIncome(monthId: number, data: { name: string; value?
     value: data.value || "0.00",
     received: data.received || 0,
     receivedAccountName: data.receivedAccountName ?? null,
-  });
-  return { id: result[0].insertId };
+  }).returning({ id: incomeEntries.id });
+  return { id: result[0].id };
 }
 
 export async function updateIncome(entryId: number, data: { name?: string; value?: string; received?: number; receivedAccountName?: string | null }) {
@@ -837,8 +837,8 @@ export async function upsertBalance(monthId: number, accountName: string, balanc
     await db.update(bankBalances).set({ balance }).where(eq(bankBalances.id, existing[0].id));
     return existing[0].id;
   } else {
-    const result = await db.insert(bankBalances).values({ monthId, accountName, balance, sortOrder });
-    return result[0].insertId;
+    const result = await db.insert(bankBalances).values({ monthId, accountName, balance, sortOrder }).returning({ id: bankBalances.id });
+    return result[0].id;
   }
 }
 
@@ -890,8 +890,8 @@ export async function createGoal(organizationId: number, data: { name: string; t
     term: data.term || "medium",
     targetValue: data.targetValue || "0.00",
     savedValue: data.savedValue || "0.00",
-  });
-  return { id: result[0].insertId };
+  }).returning({ id: goals.id });
+  return { id: result[0].id };
 }
 
 export async function updateGoal(goalId: number, data: { name?: string; term?: "short" | "medium" | "long"; targetValue?: string; savedValue?: string }) {
