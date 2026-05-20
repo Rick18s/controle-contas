@@ -15,6 +15,7 @@ import { eq } from "drizzle-orm";
 import { sendPasswordResetEmail } from "./_core/email";
 
 const ACTIVE_ORG_COOKIE = "active_organization_id";
+const REMEMBER_LOGIN_MS = 1000 * 60 * 60 * 24 * 30;
 
 function sanitizeUser(user: NonNullable<TrpcContextUser>) {
   return {
@@ -209,7 +210,7 @@ export const appRouter = router({
       };
     }),
     login: publicProcedure
-      .input(z.object({ username: z.string().min(1), password: z.string().min(1) }))
+      .input(z.object({ username: z.string().min(1), password: z.string().min(1), rememberMe: z.boolean().default(true) }))
       .mutation(async ({ ctx, input }) => {
         if (ENV.isProduction && (!process.env.LOCAL_AUTH_USERNAME || !process.env.LOCAL_AUTH_PASSWORD || !process.env.JWT_SECRET)) {
           throw new Error("Configure LOCAL_AUTH_USERNAME, LOCAL_AUTH_PASSWORD e JWT_SECRET antes de publicar");
@@ -247,8 +248,11 @@ export const appRouter = router({
           lastSignedIn: now,
         });
 
-        const token = await sdk.createSessionToken(user.openId, { name: user.name || username });
-        const cookieOptions = getSessionCookieOptions(ctx.req);
+        const token = await sdk.createSessionToken(user.openId, {
+          name: user.name || username,
+          expiresInMs: input.rememberMe ? REMEMBER_LOGIN_MS : undefined,
+        });
+        const cookieOptions = getSessionCookieOptions(ctx.req, input.rememberMe ? { maxAge: REMEMBER_LOGIN_MS } : {});
         ctx.res.cookie(COOKIE_NAME, token, cookieOptions);
 
         return sanitizeUser({ ...user, lastSignedIn: now });

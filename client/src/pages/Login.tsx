@@ -11,6 +11,7 @@ export default function Login() {
   const [, setLocation] = useLocation();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
 
   const login = trpc.auth.login.useMutation({
     onSuccess: async () => {
@@ -33,7 +34,7 @@ export default function Login() {
       toast.error("Preencha todos os campos");
       return;
     }
-    login.mutate({ username, password });
+    login.mutate({ username, password, rememberMe });
   };
 
   if (loading) {
@@ -92,9 +93,20 @@ export default function Login() {
           </div>
 
           <div className="text-right">
-            <Link href="/forgot-password" className="text-xs text-primary hover:underline font-medium">
-              Esqueci minha senha
-            </Link>
+            <div className="flex items-center justify-between gap-3">
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(event) => setRememberMe(event.target.checked)}
+                  className="accent-primary"
+                />
+                Lembrar meu acesso
+              </label>
+              <Link href="/forgot-password" className="text-xs text-primary hover:underline font-medium">
+                Esqueci minha senha
+              </Link>
+            </div>
           </div>
 
           <Button

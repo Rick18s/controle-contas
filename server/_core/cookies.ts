@@ -25,8 +25,9 @@ function isSecureRequest(req: Request) {
 }
 
 export function getSessionCookieOptions(
-  req: Request
-): Pick<CookieOptions, "domain" | "httpOnly" | "path" | "sameSite" | "secure"> {
+  req: Request,
+  options: { maxAge?: number } = {}
+): Pick<CookieOptions, "domain" | "httpOnly" | "path" | "sameSite" | "secure" | "maxAge"> {
   const secure = isSecureRequest(req);
 
   return {
@@ -34,5 +35,6 @@ export function getSessionCookieOptions(
     path: "/",
     sameSite: secure ? "none" : "lax",
     secure,
+    ...(options.maxAge ? { maxAge: options.maxAge } : {}),
   };
 }
