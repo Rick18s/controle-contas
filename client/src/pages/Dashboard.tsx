@@ -426,6 +426,7 @@ export default function Dashboard() {
               <AccountAccessBar isAdmin={canManageOrganization} onOrganizationChange={() => setSelectedMonthId(null)} />
               <TabsList className="flex h-auto w-full overflow-x-auto whitespace-nowrap justify-start sm:w-auto pb-1">
                 <TabsTrigger value="overview" className="text-xs sm:text-sm py-2 px-3">Visão Geral</TabsTrigger>
+                <TabsTrigger value="priorities" className="text-xs sm:text-sm py-2 px-3">Prioridades</TabsTrigger>
                 <TabsTrigger value="expenses" className="text-xs sm:text-sm py-2 px-3">Despesas</TabsTrigger>
                 <TabsTrigger value="income" className="text-xs sm:text-sm py-2 px-3">Receitas</TabsTrigger>
                 <TabsTrigger value="goals" className="text-xs sm:text-sm py-2 px-3">Metas</TabsTrigger>
@@ -439,8 +440,11 @@ export default function Dashboard() {
 
             <TabsContent value="overview" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
               <SummaryDashboard monthId={selectedMonthId} />
-              <PaymentSimulator monthId={selectedMonthId} />
               <CashFlowTimeline monthId={selectedMonthId} />
+            </TabsContent>
+
+            <TabsContent value="priorities" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
+              <PaymentSimulator monthId={selectedMonthId} />
             </TabsContent>
 
             <TabsContent value="expenses" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
