@@ -370,23 +370,23 @@ function ItemRow({ item, isEditing, onEdit, onClose, onRefresh, onBalancesRefres
           </div>
           <div className="space-y-1">
             <Label className="text-[10px] uppercase text-muted-foreground">Banco do pagamento</Label>
-            <Select
+            <input
+              className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
               value={paidAccountName}
-              onValueChange={(nextAccount) => {
+              onChange={(event) => {
+                const nextAccount = event.target.value;
                 setPaidAccountName(nextAccount);
-                autoSave({ name: savedName(), dueDate, value, paidValue, paidAccountName: nextAccount, status });
+                autoSave({ name: savedName(), dueDate, value, paidValue, paidAccountName: nextAccount || null, status });
               }}
-              disabled={parseMoney(paidValue) <= 0 || balances.length === 0}
-            >
-              <SelectTrigger className="w-full h-[34px] bg-background">
-                <SelectValue placeholder={parseMoney(paidValue) > 0 ? "Escolha o banco" : "Sem pagamento"} />
-              </SelectTrigger>
-              <SelectContent>
-                {balances.map(balance => (
-                  <SelectItem key={balance.id} value={balance.accountName}>{balance.accountName}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              placeholder={parseMoney(paidValue) > 0 ? "Ex: Inter, C6, Caixa" : "Sem pagamento"}
+              disabled={parseMoney(paidValue) <= 0}
+              list={`accounts-${item.id}`}
+            />
+            <datalist id={`accounts-${item.id}`}>
+              {balances.map(balance => (
+                <option key={balance.id} value={balance.accountName} />
+              ))}
+            </datalist>
           </div>
         </div>
 
@@ -416,25 +416,21 @@ function ItemRow({ item, isEditing, onEdit, onClose, onRefresh, onBalancesRefres
       return;
     }
 
-    if (balances.length === 0) {
-      toast.error("Cadastre uma conta em Saldos antes de marcar como pago");
-      return;
-    }
-
-    setPaymentAccountName(item.paidAccountName || balances[0].accountName);
+    setPaymentAccountName(item.paidAccountName || balances[0]?.accountName || "");
     setShowPaymentDialog(true);
   };
 
   const confirmPayment = () => {
-    if (!paymentAccountName) return;
+    const accountName = paymentAccountName.trim();
+    if (!accountName) return;
     setStatus("pago");
     setPaidValue(item.value);
-    setPaidAccountName(paymentAccountName);
+    setPaidAccountName(accountName);
     updateItem.mutate({
       id: item.id,
       status: "pago",
       paidValue: item.value,
-      paidAccountName: paymentAccountName,
+      paidAccountName: accountName,
     });
     setShowPaymentDialog(false);
   };
@@ -504,23 +500,42 @@ function ItemRow({ item, isEditing, onEdit, onClose, onRefresh, onBalancesRefres
             <p className="text-sm text-muted-foreground">
               Escolha de qual banco saiu {formatBrl(parseMoney(item.value))} para pagar {cleanItemName(item.name)}.
             </p>
-            <Select value={paymentAccountName} onValueChange={setPaymentAccountName}>
-              <SelectTrigger className="bg-background border-border">
-                <SelectValue placeholder="Escolha a conta" />
-              </SelectTrigger>
-              <SelectContent>
+            <input
+              className="w-full rounded border border-border bg-background/50 px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-cyan-400"
+              value={paymentAccountName}
+              onChange={(event) => setPaymentAccountName(event.target.value)}
+              placeholder="Ex: Inter, C6, Caixa"
+              autoFocus
+              list={`payment-accounts-${item.id}`}
+            />
+            <datalist id={`payment-accounts-${item.id}`}>
+              {balances.map(balance => (
+                <option key={balance.id} value={balance.accountName} />
+              ))}
+            </datalist>
+            {balances.length > 0 && (
+              <div className="flex flex-wrap gap-2">
                 {balances.map(balance => (
-                  <SelectItem key={balance.id} value={balance.accountName}>{balance.accountName}</SelectItem>
+                  <Button
+                    key={balance.id}
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setPaymentAccountName(balance.accountName)}
+                    className="h-7 border border-border px-2 text-[11px] text-muted-foreground hover:text-primary"
+                  >
+                    {balance.accountName}
+                  </Button>
                 ))}
-              </SelectContent>
-            </Select>
+              </div>
+            )}
             <p className="text-xs text-muted-foreground">
-              O saldo dessa conta será descontado automaticamente. Se desfizer o pagamento, o valor volta para a mesma conta.
+              Se a conta ainda não existir em Saldos, ela será criada com o valor descontado.
             </p>
           </div>
           <DialogFooter className="gap-2">
             <Button variant="ghost" onClick={() => setShowPaymentDialog(false)} className="text-gray-400 text-xs">Cancelar</Button>
-            <Button onClick={confirmPayment} disabled={!paymentAccountName || updateItem.isPending} className="text-xs">
+            <Button onClick={confirmPayment} disabled={!paymentAccountName.trim() || updateItem.isPending} className="text-xs">
               Confirmar pagamento
             </Button>
           </DialogFooter>
