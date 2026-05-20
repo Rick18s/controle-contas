@@ -614,8 +614,38 @@ export const appRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         await requireCanEdit(ctx);
-        await requireItemInActiveOrganization(ctx, input.id);
+        const current = await requireItemInActiveOrganization(ctx, input.id);
         const { id, ...data } = input;
+        const paymentTouched = data.paidValue !== undefined || data.paidAccountName !== undefined || data.status !== undefined;
+
+        if (paymentTouched) {
+          const nextStatus = data.status ?? current.status;
+          const nextPaidValue = nextStatus === "pendente" && data.paidValue === undefined
+            ? 0
+            : parseMoneyValue(data.paidValue ?? current.paidValue);
+          const nextAccount = nextStatus === "pendente"
+            ? null
+            : (data.paidAccountName !== undefined ? data.paidAccountName : current.paidAccountName)?.trim() || null;
+
+          if (nextPaidValue > 0 && !nextAccount) {
+            throw new Error("Escolha a conta bancária usada para pagar");
+          }
+
+          const card = await db.getCardById(current.cardId);
+          if (card) {
+            const previousPaidValue = current.paidAccountName ? parseMoneyValue(current.paidValue) : 0;
+            if (previousPaidValue > 0 && current.paidAccountName) {
+              await adjustBankBalance(card.monthId, current.paidAccountName, previousPaidValue);
+            }
+            if (nextPaidValue > 0 && nextAccount) {
+              await adjustBankBalance(card.monthId, nextAccount, -nextPaidValue);
+            }
+          }
+
+          data.paidValue = formatMoneyValue(nextPaidValue);
+          data.paidAccountName = nextPaidValue > 0 ? nextAccount : null;
+        }
+
         await db.updateItem(id, data);
         return { success: true };
       }),

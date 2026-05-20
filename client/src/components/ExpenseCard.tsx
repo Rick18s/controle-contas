@@ -7,6 +7,7 @@ import { formatBrl, getPaidAmount, getRemainingAmount, parseMoney } from "@/lib/
 import { CardCategoryIcon } from "@/components/CardCategoryIcon";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface ExpenseItem {
   id: number;
@@ -15,6 +16,7 @@ interface ExpenseItem {
   dueDate: string | null;
   value: string;
   paidValue: string;
+  paidAccountName?: string | null;
   status: "pago" | "parcial" | "pendente";
   sortOrder: number | null;
 }
@@ -51,8 +53,10 @@ function withPriority(name: string, priority: string) {
 }
 
 export default function ExpenseCard({ card, onRefresh }: { card: CardData; onRefresh: () => void }) {
+  const utils = trpc.useUtils();
   const [editingItem, setEditingItem] = useState<number | null>(null);
 
+  const balancesQuery = trpc.balances.list.useQuery({ monthId: card.monthId });
   const createCard = trpc.cards.create.useMutation();
   const createItem = trpc.items.create.useMutation();
   const deleteItem = trpc.items.delete.useMutation();
@@ -76,6 +80,7 @@ export default function ExpenseCard({ card, onRefresh }: { card: CardData; onRef
       dueDate: item.dueDate || undefined,
       value: item.value,
       paidValue: item.paidValue,
+      paidAccountName: item.paidAccountName,
       status: item.status,
     });
     onRefresh();
@@ -120,6 +125,7 @@ export default function ExpenseCard({ card, onRefresh }: { card: CardData; onRef
         dueDate: item.dueDate || undefined,
         value: item.value,
         paidValue: item.paidValue,
+        paidAccountName: item.paidAccountName,
         status: item.status,
       });
     }
@@ -181,7 +187,13 @@ export default function ExpenseCard({ card, onRefresh }: { card: CardData; onRef
             onEdit={() => setEditingItem(item.id)}
             onClose={() => setEditingItem(null)}
             onRefresh={onRefresh}
+            onBalancesRefresh={() => {
+              void balancesQuery.refetch();
+              void utils.balances.list.invalidate({ monthId: card.monthId });
+              void utils.months.getAnalytics.invalidate();
+            }}
             onDelete={() => { void handleDeleteItem(item); }}
+            balances={balancesQuery.data || []}
           />
         ))}
       </div>
@@ -212,23 +224,34 @@ export default function ExpenseCard({ card, onRefresh }: { card: CardData; onRef
   );
 }
 
-function ItemRow({ item, isEditing, onEdit, onClose, onRefresh, onDelete }: {
+function ItemRow({ item, isEditing, onEdit, onClose, onRefresh, onBalancesRefresh, onDelete, balances }: {
   item: ExpenseItem;
   isEditing: boolean;
   onEdit: () => void;
   onClose: () => void;
   onRefresh: () => void;
+  onBalancesRefresh: () => void;
   onDelete: () => void;
+  balances: Array<{ id: number; accountName: string }>;
 }) {
   const [name, setName] = useState(cleanItemName(item.name));
   const [dueDate, setDueDate] = useState(item.dueDate || "");
   const [value, setValue] = useState(item.value);
   const [paidValue, setPaidValue] = useState(item.paidValue);
+  const [paidAccountName, setPaidAccountName] = useState(item.paidAccountName || "");
   const [status, setStatus] = useState<"pago" | "parcial" | "pendente">(item.status);
   const [priority, setPriority] = useState(getItemPriority(item.name));
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [paymentAccountName, setPaymentAccountName] = useState("");
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
-  const updateItem = trpc.items.update.useMutation({ onSuccess: () => onRefresh() });
+  const updateItem = trpc.items.update.useMutation({
+    onSuccess: () => {
+      onRefresh();
+      onBalancesRefresh();
+    },
+    onError: (error) => toast.error(error.message || "Não foi possível atualizar a despesa"),
+  });
 
   // Sync local state when item changes from outside
   useEffect(() => {
@@ -236,11 +259,12 @@ function ItemRow({ item, isEditing, onEdit, onClose, onRefresh, onDelete }: {
     setDueDate(item.dueDate || "");
     setValue(item.value);
     setPaidValue(item.paidValue);
+    setPaidAccountName(item.paidAccountName || "");
     setStatus(item.status);
     setPriority(getItemPriority(item.name));
   }, [item]);
 
-  const autoSave = (patch: Partial<{ name: string; dueDate: string; value: string; paidValue: string; status: "pago" | "parcial" | "pendente" }>) => {
+  const autoSave = (patch: Partial<{ name: string; dueDate: string; value: string; paidValue: string; paidAccountName: string | null; status: "pago" | "parcial" | "pendente" }>) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       updateItem.mutate({ id: item.id, ...patch });
@@ -310,14 +334,17 @@ function ItemRow({ item, isEditing, onEdit, onClose, onRefresh, onDelete }: {
               value={paidValue}
               onChange={e => { 
                 const newPaid = e.target.value;
+                const nextPaidAmount = Number(newPaid);
+                const nextAccount = nextPaidAmount > 0 ? (paidAccountName || balances[0]?.accountName || "") : "";
                 setPaidValue(newPaid);
+                setPaidAccountName(nextAccount);
                 // Auto-calc status based on payment
                 let s = "pendente" as "pago" | "parcial" | "pendente";
-                if (Number(newPaid) > 0) {
-                  s = Number(newPaid) >= Number(value) ? "pago" : "parcial";
+                if (nextPaidAmount > 0) {
+                  s = nextPaidAmount >= Number(value) ? "pago" : "parcial";
                 }
                 setStatus(s);
-                autoSave({ name: savedName(), dueDate, value, paidValue: newPaid, status: s }); 
+                autoSave({ name: savedName(), dueDate, value, paidValue: newPaid, paidAccountName: nextAccount || null, status: s });
               }}
               placeholder="0.00"
             />
@@ -337,6 +364,26 @@ function ItemRow({ item, isEditing, onEdit, onClose, onRefresh, onDelete }: {
               <SelectContent>
                 {PRIORITY_OPTIONS.map(option => (
                   <SelectItem key={option.value || "none"} value={option.value}>{option.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase text-muted-foreground">Banco do pagamento</Label>
+            <Select
+              value={paidAccountName}
+              onValueChange={(nextAccount) => {
+                setPaidAccountName(nextAccount);
+                autoSave({ name: savedName(), dueDate, value, paidValue, paidAccountName: nextAccount, status });
+              }}
+              disabled={parseMoney(paidValue) <= 0 || balances.length === 0}
+            >
+              <SelectTrigger className="w-full h-[34px] bg-background">
+                <SelectValue placeholder={parseMoney(paidValue) > 0 ? "Escolha o banco" : "Sem pagamento"} />
+              </SelectTrigger>
+              <SelectContent>
+                {balances.map(balance => (
+                  <SelectItem key={balance.id} value={balance.accountName}>{balance.accountName}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -361,64 +408,124 @@ function ItemRow({ item, isEditing, onEdit, onClose, onRefresh, onDelete }: {
     // Apenas alterna entre pago e pendente. 
     // Para parcial, o usuário edita a linha.
     const isCurrentlyPaid = item.status === "pago";
-    const s = isCurrentlyPaid ? "pendente" : "pago";
-    const nextPaidValue = isCurrentlyPaid ? "0.00" : item.value;
-    
-    setStatus(s);
-    setPaidValue(nextPaidValue);
-    updateItem.mutate({ id: item.id, status: s, paidValue: nextPaidValue });
+    if (isCurrentlyPaid) {
+      setStatus("pendente");
+      setPaidValue("0.00");
+      setPaidAccountName("");
+      updateItem.mutate({ id: item.id, status: "pendente", paidValue: "0.00", paidAccountName: null });
+      return;
+    }
+
+    if (balances.length === 0) {
+      toast.error("Cadastre uma conta em Saldos antes de marcar como pago");
+      return;
+    }
+
+    setPaymentAccountName(item.paidAccountName || balances[0].accountName);
+    setShowPaymentDialog(true);
+  };
+
+  const confirmPayment = () => {
+    if (!paymentAccountName) return;
+    setStatus("pago");
+    setPaidValue(item.value);
+    setPaidAccountName(paymentAccountName);
+    updateItem.mutate({
+      id: item.id,
+      status: "pago",
+      paidValue: item.value,
+      paidAccountName: paymentAccountName,
+    });
+    setShowPaymentDialog(false);
   };
 
   return (
-    <div
-      className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 cursor-pointer transition-colors hover:bg-zinc-800/40 border-b border-white/5 last:border-0 gap-2 sm:gap-0"
-      onClick={onEdit}
-    >
-      <div className="flex items-center gap-3 flex-1 min-w-0">
-        <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-          <span className={`text-sm font-medium truncate ${isPaid ? 'text-green-700/60 line-through' : 'text-foreground'}`}>
-            {cleanItemName(item.name)}
-          </span>
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          {itemPriorityLabel && itemPriority && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded border border-blue-500/50 bg-blue-950/30 text-blue-200 uppercase font-semibold">
-              {itemPriorityLabel}
+    <>
+      <div
+        className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 cursor-pointer transition-colors hover:bg-zinc-800/40 border-b border-white/5 last:border-0 gap-2 sm:gap-0"
+        onClick={onEdit}
+      >
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+            <span className={`text-sm font-medium truncate ${isPaid ? 'text-green-700/60 line-through' : 'text-foreground'}`}>
+              {cleanItemName(item.name)}
             </span>
-          )}
-          {item.dueDate && (
-            <span className="text-[10px] text-gray-500 font-mono">{item.dueDate}</span>
-          )}
-          {isPartial && (
-            <>
-              <span className="text-[10px] text-green-600 font-medium">Pago {formatBrl(paidAmount)}</span>
-              <span className="text-[10px] text-blue-200 font-medium">Falta {formatBrl(remainingAmount)}</span>
-            </>
-          )}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            {itemPriorityLabel && itemPriority && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded border border-blue-500/50 bg-blue-950/30 text-blue-200 uppercase font-semibold">
+                {itemPriorityLabel}
+              </span>
+            )}
+            {item.dueDate && (
+              <span className="text-[10px] text-gray-500 font-mono">{item.dueDate}</span>
+            )}
+            {item.paidAccountName && paidAmount > 0 && (
+              <span className="text-[10px] text-green-400/70 font-mono">{item.paidAccountName}</span>
+            )}
+            {isPartial && (
+              <>
+                <span className="text-[10px] text-green-600 font-medium">Pago {formatBrl(paidAmount)}</span>
+                <span className="text-[10px] text-blue-200 font-medium">Falta {formatBrl(remainingAmount)}</span>
+              </>
+            )}
+          </div>
+          </div>
         </div>
+        <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto sm:ml-2 mt-1 sm:mt-0">
+          <span className={`text-sm font-medium ${isPaid ? 'text-green-600' : 'text-foreground'}`}>
+            {formatBrl(parseMoney(item.value))}
+          </span>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleToggleStatus();
+            }}
+            className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full border uppercase cursor-pointer hover:opacity-80 transition-opacity min-w-[70px] text-center ${statusColors[item.status]}`}
+          >
+            {item.status}
+          </button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            className="text-gray-400 hover:text-red-500 h-6 w-6 rounded-full"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </Button>
         </div>
       </div>
-      <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto sm:ml-2 mt-1 sm:mt-0">
-        <span className={`text-sm font-medium ${isPaid ? 'text-green-600' : 'text-foreground'}`}>
-          {formatBrl(parseMoney(item.value))}
-        </span>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            handleToggleStatus();
-          }}
-          className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full border uppercase cursor-pointer hover:opacity-80 transition-opacity min-w-[70px] text-center ${statusColors[item.status]}`}
-        >
-          {item.status}
-        </button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          className="text-gray-400 hover:text-red-500 h-6 w-6 rounded-full"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </Button>
-      </div>
-    </div>
+
+      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+        <DialogContent className="bg-card text-card-foreground border border-border sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-primary font-mono text-sm uppercase tracking-widest">Registrar pagamento</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Escolha de qual banco saiu {formatBrl(parseMoney(item.value))} para pagar {cleanItemName(item.name)}.
+            </p>
+            <Select value={paymentAccountName} onValueChange={setPaymentAccountName}>
+              <SelectTrigger className="bg-background border-border">
+                <SelectValue placeholder="Escolha a conta" />
+              </SelectTrigger>
+              <SelectContent>
+                {balances.map(balance => (
+                  <SelectItem key={balance.id} value={balance.accountName}>{balance.accountName}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              O saldo dessa conta será descontado automaticamente. Se desfizer o pagamento, o valor volta para a mesma conta.
+            </p>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" onClick={() => setShowPaymentDialog(false)} className="text-gray-400 text-xs">Cancelar</Button>
+            <Button onClick={confirmPayment} disabled={!paymentAccountName || updateItem.isPending} className="text-xs">
+              Confirmar pagamento
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

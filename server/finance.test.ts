@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
+import * as db from "./db";
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
@@ -96,6 +97,35 @@ describe("finance - items router input validation", () => {
         status: "invalido",
       })
     ).rejects.toThrow();
+  });
+
+  it("deducts and restores bank balance when expense payment status changes", async () => {
+    const user = await db.createPasswordUser({
+      username: `payment-user-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      name: "Payment User",
+      passwordHash: "test-hash",
+      role: "user",
+    });
+    const [organization] = await db.getOrganizationsForUser(user.id);
+    const ctx: TrpcContext = {
+      user,
+      activeOrganizationId: organization!.id,
+      req: { protocol: "https", headers: {} } as TrpcContext["req"],
+      res: { clearCookie: () => {} } as TrpcContext["res"],
+    };
+    const caller = appRouter.createCaller(ctx);
+    const month = await caller.months.create({ label: "2099-03" });
+    await caller.balances.update({ monthId: month.id, accountName: "Banco Teste", balance: "100.00" });
+    const card = await caller.cards.create({ monthId: month.id, name: "Casa" });
+    const item = await caller.items.create({ cardId: card.id, name: "Conta", value: "40.00" });
+
+    await caller.items.update({ id: item.id, status: "pago", paidValue: "40.00", paidAccountName: "Banco Teste" });
+    let balances = await caller.balances.list({ monthId: month.id });
+    expect(balances.find(balance => balance.accountName === "Banco Teste")?.balance).toBe("60.00");
+
+    await caller.items.update({ id: item.id, status: "pendente", paidValue: "0.00", paidAccountName: null });
+    balances = await caller.balances.list({ monthId: month.id });
+    expect(balances.find(balance => balance.accountName === "Banco Teste")?.balance).toBe("100.00");
   });
 });
 
