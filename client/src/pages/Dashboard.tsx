@@ -113,6 +113,7 @@ export default function Dashboard() {
           dueDate: item.dueDate || undefined,
           value: item.value,
           paidValue: item.paidValue,
+          paidAccountName: item.paidAccountName,
           status: item.status,
         });
       }

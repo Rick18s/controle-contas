@@ -541,6 +541,7 @@ export const appRouter = router({
         dueDate: z.string().optional(),
         value: z.string().optional(),
         paidValue: z.string().optional(),
+        paidAccountName: z.string().optional().nullable(),
         status: z.enum(["pago", "parcial", "pendente"]).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
@@ -556,6 +557,7 @@ export const appRouter = router({
         dueDate: z.string().optional(),
         value: z.string().optional(),
         paidValue: z.string().optional(),
+        paidAccountName: z.string().optional().nullable(),
         status: z.enum(["pago", "parcial", "pendente"]).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
@@ -569,7 +571,11 @@ export const appRouter = router({
       .input(z.object({ id: z.number() }))
       .mutation(async ({ ctx, input }) => {
         await requireCanEdit(ctx);
-        await requireItemInActiveOrganization(ctx, input.id);
+        const item = await requireItemInActiveOrganization(ctx, input.id);
+        if (item.paidAccountName && parseMoneyValue(item.paidValue) > 0) {
+          const card = await db.getCardById(item.cardId);
+          if (card) await adjustBankBalance(card.monthId, item.paidAccountName, parseMoneyValue(item.paidValue));
+        }
         await db.deleteItem(input.id);
         return { success: true };
       }),
@@ -826,6 +832,7 @@ Sua tarefa:
           name: result.name,
           value: result.value.toFixed(2),
           paidValue: result.value.toFixed(2),
+          paidAccountName: input.accountName?.trim() || null,
           status: "pago",
         });
         return { type: "expense", id: created.id, cardId, name: result.name, value: result.value };

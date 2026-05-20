@@ -248,6 +248,7 @@ type MemoryItem = {
   dueDate: string | null;
   value: string;
   paidValue: string;
+  paidAccountName?: string | null;
   status: "pago" | "parcial" | "pendente";
   sortOrder: number | null;
 };
@@ -681,7 +682,7 @@ export async function getItemById(itemId: number) {
   return result[0];
 }
 
-export async function createItem(cardId: number, data: { name: string; dueDate?: string; value?: string; paidValue?: string; status?: "pago" | "parcial" | "pendente" }) {
+export async function createItem(cardId: number, data: { name: string; dueDate?: string; value?: string; paidValue?: string; paidAccountName?: string | null; status?: "pago" | "parcial" | "pendente" }) {
   const db = await getDb();
   if (!db) {
     const item = {
@@ -691,6 +692,7 @@ export async function createItem(cardId: number, data: { name: string; dueDate?:
       dueDate: data.dueDate || "",
       value: data.value || "0.00",
       paidValue: data.paidValue || "0.00",
+      paidAccountName: data.paidAccountName ?? null,
       status: data.status || "pendente",
       sortOrder: memoryItems.filter(existing => existing.cardId === cardId).length,
     };
@@ -704,12 +706,13 @@ export async function createItem(cardId: number, data: { name: string; dueDate?:
     dueDate: data.dueDate || "",
     value: data.value || "0.00",
     paidValue: data.paidValue || "0.00",
+    paidAccountName: data.paidAccountName ?? null,
     status: data.status || "pendente",
   });
   return { id: result[0].insertId };
 }
 
-export async function updateItem(itemId: number, data: { name?: string; dueDate?: string; value?: string; paidValue?: string; status?: "pago" | "parcial" | "pendente" }) {
+export async function updateItem(itemId: number, data: { name?: string; dueDate?: string; value?: string; paidValue?: string; paidAccountName?: string | null; status?: "pago" | "parcial" | "pendente" }) {
   const db = await getDb();
   if (!db) {
     const item = memoryItems.find(existing => existing.id === itemId);
@@ -1184,6 +1187,7 @@ export async function copyMonthData(userId: number, sourceMonthId: number, optio
           dueDate: sourceItem.dueDate || "",
           value: sourceItem.value,
           paidValue: resetPaymentStatus ? "0.00" : sourceItem.paidValue,
+          paidAccountName: resetPaymentStatus ? null : sourceItem.paidAccountName,
           status: resetPaymentStatus ? "pendente" : sourceItem.status,
         });
         if (db) {

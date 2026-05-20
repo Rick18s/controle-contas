@@ -171,6 +171,7 @@ for (const item of snapshot.items ?? []) {
     dueDate: item.dueDate ?? "",
     value: money(item.value),
     paidValue: money(item.paidValue),
+    paidAccountName: item.paidAccountName ?? null,
     status: item.status ?? "pendente",
     sortOrder: item.sortOrder ?? 0,
   }).onDuplicateKeyUpdate({
@@ -180,6 +181,7 @@ for (const item of snapshot.items ?? []) {
       dueDate: item.dueDate ?? "",
       value: money(item.value),
       paidValue: money(item.paidValue),
+      paidAccountName: item.paidAccountName ?? null,
       status: item.status ?? "pendente",
       sortOrder: item.sortOrder ?? 0,
     },
