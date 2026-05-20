@@ -150,9 +150,9 @@ export default function ExpenseCard({ card, onRefresh }: { card: CardData; onRef
   };
 
   return (
-    <div className="rounded-2xl overflow-hidden border border-border bg-card shadow-sm hover:border-primary/40 transition-colors">
+    <div className="rounded-2xl overflow-hidden border border-white/5 bg-zinc-900 shadow-sm transition-all hover:border-purple-500/30 hover:shadow-lg hover:shadow-purple-500/5">
       {/* Card Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-cyan-950/10">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-zinc-900/80">
         <div className="flex items-center gap-2">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-primary/10 text-primary">
             <CardCategoryIcon name={card.name} className="h-4 w-4" />
@@ -194,7 +194,7 @@ export default function ExpenseCard({ card, onRefresh }: { card: CardData; onRef
       </div>
 
       {/* Footer Totals */}
-      <div className="px-4 py-3 border-t border-border bg-cyan-950/10">
+      <div className="px-4 py-3 border-t border-white/5 bg-zinc-900/80">
         <div className="flex justify-between text-xs font-medium">
           <span className="text-muted-foreground uppercase">Total</span>
           <span className="text-foreground font-semibold">{formatBrl(totalValue)}</span>
@@ -250,9 +250,9 @@ function ItemRow({ item, isEditing, onEdit, onClose, onRefresh, onDelete }: {
   const savedName = (nextName = name, nextPriority = priority) => withPriority(nextName, nextPriority);
 
   const statusColors: Record<string, string> = {
-    pago: 'bg-green-100 text-green-700 border-green-200',
-    parcial: 'bg-blue-950/40 text-blue-200 border-blue-500/40',
-    pendente: 'bg-cyan-950/30 text-cyan-200 border-cyan-500/30',
+    pago: 'bg-green-500/10 text-green-400 border-green-500/20',
+    parcial: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+    pendente: 'bg-zinc-800 text-zinc-300 border-zinc-700',
   };
 
   if (isEditing) {
@@ -371,7 +371,7 @@ function ItemRow({ item, isEditing, onEdit, onClose, onRefresh, onDelete }: {
 
   return (
     <div
-      className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 cursor-pointer transition-colors hover:bg-cyan-400/[0.05] border-b border-border last:border-0 gap-2 sm:gap-0"
+      className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 cursor-pointer transition-colors hover:bg-zinc-800/40 border-b border-white/5 last:border-0 gap-2 sm:gap-0"
       onClick={onEdit}
     >
       <div className="flex items-center gap-3 flex-1 min-w-0">

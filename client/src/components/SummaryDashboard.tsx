@@ -49,9 +49,9 @@ export default function SummaryDashboard({ monthId }: { monthId: number }) {
       {summaryCards.map((card, idx) => (
         <div
           key={idx}
-          className="rounded-lg border border-border bg-card p-3 text-center shadow-sm sm:p-4"
+          className="rounded-2xl border border-white/5 bg-zinc-900/50 backdrop-blur-md p-3 text-center shadow-sm sm:p-4 transition-all hover:bg-zinc-800/50"
         >
-          <div className="mb-2 text-[9px] font-medium uppercase tracking-wider text-muted-foreground sm:text-[10px]">
+          <div className="mb-1 text-[10px] font-medium tracking-wide text-zinc-400">
             {card.label}
           </div>
           <div className={`text-xs font-bold font-mono sm:text-sm md:text-base ${card.color}`} >

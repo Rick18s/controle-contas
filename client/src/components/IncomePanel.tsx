@@ -82,7 +82,7 @@ export default function IncomePanel({ monthId }: { monthId: number }) {
   };
 
   return (
-    <div className="rounded-lg border border-border bg-card glass-card hover:border-primary/50 p-4">
+    <div className="rounded-2xl border border-white/5 bg-zinc-900 shadow-sm p-4 transition-all hover:border-purple-500/30">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm font-mono uppercase tracking-widest text-primary" >
           💰 Entradas
@@ -218,7 +218,7 @@ function IncomeEntryCard({ entry, isEditing, onEdit, onClose, onUpdate, onDelete
 
   return (
     <div
-      className={`rounded-lg p-3 border cursor-pointer transition-all hover:border-primary/40 ${entry.received ? 'border-green-600/30 bg-green-950/20' : 'border-border bg-card'}`}
+      className={`rounded-lg p-3 border cursor-pointer transition-all hover:border-purple-500/40 ${entry.received ? 'border-green-500/20 bg-green-500/5' : 'border-white/5 bg-zinc-800/50'}`}
       onClick={onEdit}
     >
       <div className="flex items-center justify-between">
@@ -252,7 +252,7 @@ function IncomeEntryCard({ entry, isEditing, onEdit, onClose, onUpdate, onDelete
             e.stopPropagation();
             onToggleReceived();
           }}
-          className={`text-[10px] font-mono uppercase px-1.5 py-0.5 rounded border cursor-pointer hover:opacity-80 transition-opacity ${entry.received ? 'text-green-400 border-green-600/50 bg-green-900/30' : 'text-blue-200 border-blue-500/50 bg-blue-950/30'}`}
+          className={`text-[10px] font-mono uppercase px-1.5 py-0.5 rounded border cursor-pointer hover:opacity-80 transition-opacity ${entry.received ? 'text-green-400 border-green-500/20 bg-green-500/10' : 'text-purple-400 border-purple-500/20 bg-purple-500/10'}`}
         >
           {entry.received ? "recebido" : "pendente"}
         </button>

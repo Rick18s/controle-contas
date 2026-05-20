@@ -312,8 +312,8 @@ export default function Dashboard() {
       {/* Header */}
       <header className="border-b border-border/30 sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex flex-wrap items-center justify-between gap-2 py-2 sm:h-14 sm:flex-nowrap sm:py-0">
-          <h1 className="shrink-0 whitespace-nowrap text-sm font-black tracking-normal text-primary sm:text-base" >
-            CONTROLE DE CONTAS
+          <h1 className="shrink-0 whitespace-nowrap text-lg font-bold tracking-tight text-white flex items-center gap-2" >
+            Controle de Contas
           </h1>
 
           {/* Month Navigation */}
@@ -583,7 +583,7 @@ export default function Dashboard() {
           />
           <Button
             onClick={() => setShowQuickAddDialog(true)}
-            className="fixed bottom-4 right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-amber-500 p-0 text-slate-900 shadow-2xl transition-transform hover:scale-105 hover:bg-amber-600 active:scale-95 sm:bottom-6 sm:right-6 sm:h-14 sm:w-14"
+            className="fixed bottom-4 right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-blue-600 p-0 text-white shadow-2xl shadow-purple-500/30 transition-transform hover:scale-105 hover:shadow-purple-500/50 active:scale-95 sm:bottom-6 sm:right-6 sm:h-14 sm:w-14"
             title="Adição Inteligente"
           >
             <Sparkles className="h-5 w-5 sm:h-6 sm:w-6" />

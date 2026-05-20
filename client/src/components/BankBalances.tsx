@@ -46,7 +46,7 @@ export default function BankBalances({ monthId }: { monthId: number }) {
   };
 
   return (
-    <div className="rounded-lg border border-border bg-card glass-card hover:border-primary/50 p-4">
+    <div className="rounded-2xl border border-white/5 bg-zinc-900 shadow-sm p-4 transition-all hover:border-purple-500/30">
       <div className="flex items-center justify-between gap-3 mb-4">
         <h2 className="text-sm font-mono uppercase tracking-widest text-primary flex items-center gap-2" >
           <Landmark className="h-4 w-4" />
@@ -150,7 +150,7 @@ function BalanceInput({ label, value, onSave, onDelete }: { label: string; value
   };
 
   return (
-    <div className="flex items-center justify-between gap-3 p-2 rounded border" style={{ background: 'rgba(0,0,0,0.3)', borderColor: 'rgba(0,240,255,0.1)' }}>
+    <div className="flex items-center justify-between gap-3 p-2 rounded-lg border border-white/5 bg-zinc-800/50">
       <span className="text-[11px] font-mono text-gray-400 uppercase tracking-wide flex-1">{label}</span>
       <div className="flex items-center gap-1">
         <span className="text-[10px] text-gray-600">R$</span>
