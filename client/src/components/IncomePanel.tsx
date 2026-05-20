@@ -4,18 +4,34 @@ import { Plus, Trash2, Check } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import { formatBrl, parseMoney } from "@/lib/money";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function IncomePanel({ monthId }: { monthId: number }) {
+  const utils = trpc.useUtils();
   const incomeQuery = trpc.income.list.useQuery({ monthId });
+  const balancesQuery = trpc.balances.list.useQuery({ monthId });
   const createIncome = trpc.income.create.useMutation();
   const updateIncome = trpc.income.update.useMutation({ onSuccess: () => incomeQuery.refetch() });
+  const setIncomeReceived = trpc.income.setReceived.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        incomeQuery.refetch(),
+        balancesQuery.refetch(),
+        utils.months.getAnalytics.invalidate(),
+      ]);
+    },
+    onError: (error) => toast.error(error.message || "Não foi possível atualizar a entrada"),
+  });
   const deleteIncome = trpc.income.delete.useMutation();
 
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [receiptTarget, setReceiptTarget] = useState<{ id: number; name: string; value: string } | null>(null);
+  const [receiptAccountName, setReceiptAccountName] = useState("");
 
   const entries = incomeQuery.data || [];
+  const balances = balancesQuery.data || [];
   const totalIncome = entries.reduce((sum, e) => sum + parseMoney(e.value), 0);
   const totalReceived = entries.filter(e => e.received === 1).reduce((sum, e) => sum + parseMoney(e.value), 0);
 
@@ -48,6 +64,23 @@ export default function IncomePanel({ monthId }: { monthId: number }) {
     });
   };
 
+  const openReceiveDialog = (entry: { id: number; name: string; value: string }) => {
+    if (balances.length === 0) {
+      toast.error("Cadastre uma conta em Saldos antes de marcar como recebido");
+      return;
+    }
+    setReceiptTarget(entry);
+    setReceiptAccountName(balances[0].accountName);
+  };
+
+  const confirmReceived = async () => {
+    if (!receiptTarget || !receiptAccountName) return;
+    await setIncomeReceived.mutateAsync({ id: receiptTarget.id, received: 1, accountName: receiptAccountName });
+    toast.success(`Entrada recebida em ${receiptAccountName}`);
+    setReceiptTarget(null);
+    setReceiptAccountName("");
+  };
+
   return (
     <div className="rounded-lg border border-border bg-card glass-card hover:border-primary/50 p-4">
       <div className="flex items-center justify-between mb-4">
@@ -69,7 +102,13 @@ export default function IncomePanel({ monthId }: { monthId: number }) {
             onClose={() => setEditingId(null)}
             onUpdate={(data) => updateIncome.mutate({ id: entry.id, ...data })}
             onDelete={() => { void handleDeleteIncome(entry); }}
-            onToggleReceived={() => updateIncome.mutate({ id: entry.id, received: entry.received === 1 ? 0 : 1 })}
+            onToggleReceived={() => {
+              if (entry.received === 1) {
+                setIncomeReceived.mutate({ id: entry.id, received: 0 });
+              } else {
+                openReceiveDialog(entry);
+              }
+            }}
           />
         ))}
       </div>
@@ -85,12 +124,44 @@ export default function IncomePanel({ monthId }: { monthId: number }) {
           <span className="text-primary">{formatBrl(totalReceived)}</span>
         </div>
       </div>
+
+      <Dialog open={Boolean(receiptTarget)} onOpenChange={(open) => { if (!open) setReceiptTarget(null); }}>
+        <DialogContent className="bg-card text-card-foreground border border-border sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-primary font-mono text-sm uppercase tracking-widest">Receber entrada</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Escolha em qual banco entrou {receiptTarget ? formatBrl(parseMoney(receiptTarget.value)) : ""}.
+            </p>
+            <Select value={receiptAccountName} onValueChange={setReceiptAccountName}>
+              <SelectTrigger className="bg-background border-border">
+                <SelectValue placeholder="Escolha a conta" />
+              </SelectTrigger>
+              <SelectContent>
+                {balances.map(balance => (
+                  <SelectItem key={balance.id} value={balance.accountName}>{balance.accountName}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              O saldo do banco será atualizado automaticamente. Se você desfizer, o valor será removido da mesma conta.
+            </p>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" onClick={() => setReceiptTarget(null)} className="text-gray-400 text-xs">Cancelar</Button>
+            <Button onClick={() => { void confirmReceived(); }} disabled={!receiptAccountName || setIncomeReceived.isPending} className="text-xs">
+              Confirmar recebimento
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
 function IncomeEntryCard({ entry, isEditing, onEdit, onClose, onUpdate, onDelete, onToggleReceived }: {
-  entry: { id: number; name: string; value: string; received: number };
+  entry: { id: number; name: string; value: string; received: number; receivedAccountName?: string | null };
   isEditing: boolean;
   onEdit: () => void;
   onClose: () => void;
@@ -168,9 +239,14 @@ function IncomeEntryCard({ entry, isEditing, onEdit, onClose, onUpdate, onDelete
         </div>
       </div>
       <div className="mt-1 flex items-center justify-between">
-        <span className={`text-sm font-mono font-bold ${entry.received ? 'text-primary' : 'text-white'}`}>
-          {formatBrl(parseMoney(entry.value))}
-        </span>
+        <div className="flex flex-col">
+          <span className={`text-sm font-mono font-bold ${entry.received ? 'text-primary' : 'text-white'}`}>
+            {formatBrl(parseMoney(entry.value))}
+          </span>
+          {entry.received === 1 && entry.receivedAccountName && (
+            <span className="text-[10px] text-green-400/70 font-mono">{entry.receivedAccountName}</span>
+          )}
+        </div>
         <button
           onClick={(e) => {
             e.stopPropagation();

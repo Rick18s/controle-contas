@@ -165,6 +165,24 @@ function parseQuickAddText(text: string, cards: Awaited<ReturnType<typeof db.get
   };
 }
 
+function parseMoneyValue(value: string | number | null | undefined) {
+  const parsed = typeof value === "number" ? value : Number.parseFloat(String(value ?? "0").replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatMoneyValue(value: number) {
+  return value.toFixed(2);
+}
+
+async function adjustBankBalance(monthId: number, accountName: string | null | undefined, delta: number) {
+  const normalizedAccountName = accountName?.trim();
+  if (!normalizedAccountName || !Number.isFinite(delta) || delta === 0) return;
+  const balances = await db.getBalancesByMonth(monthId);
+  const existing = balances.find(balance => balance.accountName === normalizedAccountName);
+  const current = parseMoneyValue(existing?.balance);
+  await db.upsertBalance(monthId, normalizedAccountName, formatMoneyValue(current + delta), existing?.sortOrder ?? balances.length);
+}
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -571,6 +589,7 @@ export const appRouter = router({
         name: z.string(),
         value: z.string().optional(),
         received: z.number().optional(),
+        receivedAccountName: z.string().optional().nullable(),
       }))
       .mutation(async ({ ctx, input }) => {
         await requireCanEdit(ctx);
@@ -584,12 +603,49 @@ export const appRouter = router({
         name: z.string().optional(),
         value: z.string().optional(),
         received: z.number().optional(),
+        receivedAccountName: z.string().optional().nullable(),
       }))
       .mutation(async ({ ctx, input }) => {
         await requireCanEdit(ctx);
-        await requireIncomeInActiveOrganization(ctx, input.id);
+        const current = await requireIncomeInActiveOrganization(ctx, input.id);
         const { id, ...data } = input;
+        if (data.value !== undefined && current.received === 1 && current.receivedAccountName) {
+          const delta = parseMoneyValue(data.value) - parseMoneyValue(current.value);
+          await adjustBankBalance(current.monthId, current.receivedAccountName, delta);
+        }
         await db.updateIncome(id, data);
+        return { success: true };
+      }),
+    setReceived: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        received: z.number().refine(value => value === 0 || value === 1),
+        accountName: z.string().optional().nullable(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await requireCanEdit(ctx);
+        const entry = await requireIncomeInActiveOrganization(ctx, input.id);
+        const value = parseMoneyValue(entry.value);
+        const nextReceived = input.received;
+        const nextAccount = input.accountName?.trim() || null;
+        const previousAccount = entry.receivedAccountName || null;
+
+        if (nextReceived === 1 && !nextAccount) {
+          throw new Error("Escolha a conta bancária onde o valor entrou");
+        }
+
+        if (entry.received === 1 && previousAccount && (nextReceived === 0 || previousAccount !== nextAccount)) {
+          await adjustBankBalance(entry.monthId, previousAccount, -value);
+        }
+
+        if (nextReceived === 1 && (entry.received !== 1 || previousAccount !== nextAccount)) {
+          await adjustBankBalance(entry.monthId, nextAccount, value);
+        }
+
+        await db.updateIncome(input.id, {
+          received: nextReceived,
+          receivedAccountName: nextReceived === 1 ? nextAccount : null,
+        });
         return { success: true };
       }),
     delete: protectedProcedure
@@ -678,11 +734,12 @@ export const appRouter = router({
   
   ai: router({
     quickAdd: protectedProcedure
-      .input(z.object({ monthId: z.number(), text: z.string().min(1) }))
+      .input(z.object({ monthId: z.number(), text: z.string().min(1), accountName: z.string().optional().nullable() }))
       .mutation(async ({ ctx, input }) => {
         await requireCanEdit(ctx);
         await requireMonthInActiveOrganization(ctx, input.monthId);
         const cards = await db.getCardsByMonth(input.monthId);
+        const balances = await db.getBalancesByMonth(input.monthId);
         let result = parseQuickAddText(input.text, cards);
         
         if (!result) {
@@ -732,8 +789,18 @@ Sua tarefa:
           throw new Error("Informe um nome e valor. Exemplo: Pastel 40 reais");
         }
 
+        if (balances.length > 0 && !input.accountName?.trim()) {
+          throw new Error("Escolha a conta bancária movimentada");
+        }
+
         if (result.transactionType === "income") {
-          const created = await db.createIncome(input.monthId, { name: result.name, value: result.value.toFixed(2), received: 0 });
+          await adjustBankBalance(input.monthId, input.accountName, result.value);
+          const created = await db.createIncome(input.monthId, {
+            name: result.name,
+            value: result.value.toFixed(2),
+            received: 1,
+            receivedAccountName: input.accountName?.trim() || null,
+          });
           return { type: "income", id: created.id, name: result.name, value: result.value };
         }
 
@@ -754,7 +821,13 @@ Sua tarefa:
           cardId = newCard.id;
         }
 
-        const created = await db.createItem(cardId, { name: result.name, value: result.value.toFixed(2), status: "pendente" });
+        await adjustBankBalance(input.monthId, input.accountName, -result.value);
+        const created = await db.createItem(cardId, {
+          name: result.name,
+          value: result.value.toFixed(2),
+          paidValue: result.value.toFixed(2),
+          status: "pago",
+        });
         return { type: "expense", id: created.id, cardId, name: result.name, value: result.value };
       }),
   }),

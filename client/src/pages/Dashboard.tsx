@@ -124,6 +124,7 @@ export default function Dashboard() {
         name: entry.name,
         value: entry.value,
         received: entry.received,
+        receivedAccountName: entry.receivedAccountName,
       });
     }
 

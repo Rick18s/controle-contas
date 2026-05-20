@@ -251,7 +251,7 @@ type MemoryItem = {
   status: "pago" | "parcial" | "pendente";
   sortOrder: number | null;
 };
-type MemoryIncome = { id: number; monthId: number; name: string; value: string; received: number; sortOrder: number | null };
+type MemoryIncome = { id: number; monthId: number; name: string; value: string; received: number; receivedAccountName?: string | null; sortOrder: number | null };
 type MemoryBalance = { id: number; monthId: number; accountName: string; balance: string; sortOrder: number | null };
 type MemoryGoal = { id: number; organizationId: number; name: string; term: "short" | "medium" | "long"; targetValue: string; savedValue: string; sortOrder: number | null };
 
@@ -746,7 +746,7 @@ export async function getIncomeById(entryId: number) {
   return result[0];
 }
 
-export async function createIncome(monthId: number, data: { name: string; value?: string; received?: number }) {
+export async function createIncome(monthId: number, data: { name: string; value?: string; received?: number; receivedAccountName?: string | null }) {
   const db = await getDb();
   if (!db) {
     const entry = {
@@ -755,6 +755,7 @@ export async function createIncome(monthId: number, data: { name: string; value?
       name: data.name,
       value: data.value || "0.00",
       received: data.received || 0,
+      receivedAccountName: data.receivedAccountName ?? null,
       sortOrder: memoryIncome.filter(existing => existing.monthId === monthId).length,
     };
     memoryIncome.push(entry);
@@ -766,11 +767,12 @@ export async function createIncome(monthId: number, data: { name: string; value?
     name: data.name,
     value: data.value || "0.00",
     received: data.received || 0,
+    receivedAccountName: data.receivedAccountName ?? null,
   });
   return { id: result[0].insertId };
 }
 
-export async function updateIncome(entryId: number, data: { name?: string; value?: string; received?: number }) {
+export async function updateIncome(entryId: number, data: { name?: string; value?: string; received?: number; receivedAccountName?: string | null }) {
   const db = await getDb();
   if (!db) {
     const entry = memoryIncome.find(existing => existing.id === entryId);
@@ -1202,6 +1204,7 @@ export async function copyMonthData(userId: number, sourceMonthId: number, optio
         name: sourceEntry.name,
         value: sourceEntry.value,
         received: resetPaymentStatus ? 0 : sourceEntry.received,
+        receivedAccountName: resetPaymentStatus ? null : sourceEntry.receivedAccountName,
       });
       if (db) {
         await db.update(incomeEntries).set({ sortOrder: sourceEntry.sortOrder ?? incomeIndex }).where(eq(incomeEntries.id, targetEntry.id));

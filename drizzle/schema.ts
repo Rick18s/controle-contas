@@ -80,6 +80,7 @@ export const incomeEntries = mysqlTable("income_entries", {
   name: varchar("name", { length: 200 }).notNull(),
   value: decimal("value", { precision: 12, scale: 2 }).default("0.00").notNull(),
   received: tinyint("received").default(0).notNull(), // 0=pending, 1=received
+  receivedAccountName: varchar("receivedAccountName", { length: 100 }),
   sortOrder: int("sortOrder").default(0),
 });
 

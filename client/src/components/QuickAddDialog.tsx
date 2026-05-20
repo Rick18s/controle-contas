@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Sparkles, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface QuickAddDialogProps {
   open: boolean;
@@ -15,7 +16,10 @@ interface QuickAddDialogProps {
 
 export default function QuickAddDialog({ open, onOpenChange, monthId, onSuccess }: QuickAddDialogProps) {
   const [text, setText] = useState("");
+  const [accountName, setAccountName] = useState("");
   const utils = trpc.useUtils();
+  const balancesQuery = trpc.balances.list.useQuery({ monthId }, { enabled: open });
+  const balances = balancesQuery.data || [];
   const quickAdd = trpc.ai.quickAdd.useMutation({
     onSuccess: async (result) => {
       await Promise.all([
@@ -36,8 +40,14 @@ export default function QuickAddDialog({ open, onOpenChange, monthId, onSuccess 
 
   const handleQuickAdd = () => {
     if (!text.trim()) return;
-    quickAdd.mutate({ monthId, text });
+    quickAdd.mutate({ monthId, text, accountName: accountName || undefined });
   };
+
+  useEffect(() => {
+    if (open && balances.length > 0 && !accountName) {
+      setAccountName(balances[0].accountName);
+    }
+  }, [accountName, balances, open]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -64,6 +74,30 @@ export default function QuickAddDialog({ open, onOpenChange, monthId, onSuccess 
             className="text-lg py-6 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 focus-visible:ring-amber-500/50"
             disabled={quickAdd.isPending}
           />
+          <div className="mt-3 space-y-2">
+            <label className="text-[10px] font-mono uppercase tracking-widest text-slate-400">
+              Conta bancária movimentada
+            </label>
+            {balances.length > 0 ? (
+              <Select value={accountName} onValueChange={setAccountName} disabled={quickAdd.isPending}>
+                <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
+                  <SelectValue placeholder="Escolha a conta" />
+                </SelectTrigger>
+                <SelectContent>
+                  {balances.map(balance => (
+                    <SelectItem key={balance.id} value={balance.accountName}>{balance.accountName}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <p className="text-xs text-slate-500">
+                Cadastre uma conta em Saldos para atualizar o banco automaticamente.
+              </p>
+            )}
+            <p className="text-[11px] text-slate-500">
+              Gastos rápidos entram como pagos. Entradas rápidas entram como recebidas.
+            </p>
+          </div>
         </div>
 
         <DialogFooter>

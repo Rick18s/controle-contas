@@ -193,6 +193,7 @@ for (const entry of snapshot.income ?? []) {
     name: entry.name,
     value: money(entry.value),
     received: entry.received ?? 0,
+    receivedAccountName: entry.receivedAccountName ?? null,
     sortOrder: entry.sortOrder ?? 0,
   }).onDuplicateKeyUpdate({
     set: {
@@ -200,6 +201,7 @@ for (const entry of snapshot.income ?? []) {
       name: entry.name,
       value: money(entry.value),
       received: entry.received ?? 0,
+      receivedAccountName: entry.receivedAccountName ?? null,
       sortOrder: entry.sortOrder ?? 0,
     },
   });
