@@ -323,6 +323,8 @@ export const appRouter = router({
           passwordHash: hashPassword(input.password),
           role: "user",
         });
+        const organization = await db.getActiveOrganizationForUser(user.id, null);
+        await db.seedStarterMonthData(user.id, organization.id);
 
         const token = await sdk.createSessionToken(user.openId, { name: user.name || username });
         const cookieOptions = getSessionCookieOptions(ctx.req);
@@ -444,6 +446,10 @@ export const appRouter = router({
     list: protectedProcedure.query(async ({ ctx }) => {
       const organization = await getActiveOrganization(ctx);
       const userMonths = await db.getMonthsByOrganization(ctx.user.id, organization.id);
+      if (userMonths.length === 0 && ctx.user.username !== ENV.localAuthUsername) {
+        await db.seedStarterMonthData(ctx.user.id, organization.id);
+        return db.getMonthsByOrganization(ctx.user.id, organization.id);
+      }
       if (userMonths.length > 0 || ctx.user.username !== ENV.localAuthUsername) {
         return userMonths;
       }

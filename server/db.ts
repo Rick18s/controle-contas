@@ -288,6 +288,50 @@ const MAY_2026_SEED_INCOME: { name: string; value: string; received?: number }[]
   { name: "Distribuição de lucro restante", value: "23770.00" },
 ];
 
+const STARTER_CARDS: { name: string; icon: string; items: SeedItem[] }[] = [
+  {
+    name: "Casa",
+    icon: "🏠",
+    items: [
+      { name: "Aluguel", value: "0.00" },
+      { name: "Energia", value: "0.00" },
+      { name: "Internet", value: "0.00" },
+      { name: "Mercado", value: "0.00" },
+    ],
+  },
+  {
+    name: "Cartões",
+    icon: "💳",
+    items: [
+      { name: "Cartão principal", value: "0.00" },
+      { name: "Outro cartão", value: "0.00" },
+    ],
+  },
+  {
+    name: "Trabalho / Empresa",
+    icon: "🏢",
+    items: [
+      { name: "Ferramentas", value: "0.00" },
+      { name: "Impostos", value: "0.00" },
+    ],
+  },
+  {
+    name: "Pessoal",
+    icon: "✨",
+    items: [
+      { name: "Cuidados pessoais", value: "0.00" },
+      { name: "Lazer", value: "0.00" },
+    ],
+  },
+  {
+    name: "Outros",
+    icon: "📦",
+    items: [
+      { name: "Despesa extra", value: "0.00" },
+    ],
+  },
+];
+
 type MemoryOrganization = { id: number; name: string; ownerUserId: number; createdAt: Date };
 type MemoryOrganizationMember = { id: number; organizationId: number; userId: number; role: "admin" | "finance" | "viewer"; createdAt: Date };
 type MemoryMonth = { id: number; userId: number; organizationId: number; label: string; createdAt?: Date };
@@ -1396,6 +1440,71 @@ export async function seedMay2026Data(userId: number, organizationId?: number) {
     }
   }
 
+  return month;
+}
+
+function getCurrentMonthLabel() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+async function setSortOrder(tableName: "card" | "item" | "income", id: number, sortOrder: number) {
+  const db = await getDb();
+  if (db) {
+    if (tableName === "card") await db.update(expenseCards).set({ sortOrder }).where(eq(expenseCards.id, id));
+    if (tableName === "item") await db.update(expenseItems).set({ sortOrder }).where(eq(expenseItems.id, id));
+    if (tableName === "income") await db.update(incomeEntries).set({ sortOrder }).where(eq(incomeEntries.id, id));
+    return;
+  }
+  if (tableName === "card") {
+    const card = memoryCards.find(entry => entry.id === id);
+    if (card) card.sortOrder = sortOrder;
+  }
+  if (tableName === "item") {
+    const item = memoryItems.find(entry => entry.id === id);
+    if (item) item.sortOrder = sortOrder;
+  }
+  if (tableName === "income") {
+    const income = memoryIncome.find(entry => entry.id === id);
+    if (income) income.sortOrder = sortOrder;
+  }
+}
+
+export async function seedStarterMonthData(userId: number, organizationId?: number) {
+  const orgId = organizationId ?? (await getDefaultOrganizationForUser(userId)).id;
+  const label = getCurrentMonthLabel();
+  const existingMonths = await getMonthsByOrganization(userId, orgId);
+  const month = existingMonths.find(existing => existing.label === label) ?? await createMonth(userId, label, orgId);
+  const existingCards = await getCardsByMonth(month.id);
+  const existingIncome = await getIncomeByMonth(month.id);
+  const existingBalances = await getBalancesByMonth(month.id);
+
+  if (existingBalances.length === 0) {
+    await upsertBalance(month.id, "Conta principal", "0.00", 0);
+  }
+
+  if (existingIncome.length === 0) {
+    const createdIncome = await createIncome(month.id, {
+      name: "Receita principal",
+      value: "0.00",
+      received: 0,
+    });
+    await setSortOrder("income", createdIncome.id, 0);
+  }
+
+  if (existingCards.length === 0) {
+    for (let cardIndex = 0; cardIndex < STARTER_CARDS.length; cardIndex += 1) {
+      const starterCard = STARTER_CARDS[cardIndex];
+      const createdCard = await createCard(month.id, starterCard.name, starterCard.icon);
+      await setSortOrder("card", createdCard.id, cardIndex);
+      for (let itemIndex = 0; itemIndex < starterCard.items.length; itemIndex += 1) {
+        const createdItem = await createItem(createdCard.id, starterCard.items[itemIndex]);
+        await setSortOrder("item", createdItem.id, itemIndex);
+      }
+    }
+  }
+
+  if (!(await getDb())) persistMemoryData();
   return month;
 }
 
