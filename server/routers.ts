@@ -658,7 +658,10 @@ export const appRouter = router({
       .input(z.object({ id: z.number() }))
       .mutation(async ({ ctx, input }) => {
         await requireCanEdit(ctx);
-        await requireIncomeInActiveOrganization(ctx, input.id);
+        const entry = await requireIncomeInActiveOrganization(ctx, input.id);
+        if (entry.received === 1 && entry.receivedAccountName) {
+          await adjustBankBalance(entry.monthId, entry.receivedAccountName, -parseMoneyValue(entry.value));
+        }
         await db.deleteIncome(input.id);
         return { success: true };
       }),
