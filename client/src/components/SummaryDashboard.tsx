@@ -34,17 +34,14 @@ export default function SummaryDashboard({ monthId }: { monthId: number }) {
   
   // O fluxo de caixa agora inclui o que sobrou do mês anterior
   const cashFlow = totalBankBalance + totalReceivedIncome + carryover - totalRemaining;
+  const expectedIncome = Math.max(totalIncome - totalReceivedIncome, 0);
+  const availableNow = totalBankBalance + carryover;
+  const projectedAvailable = availableNow + expectedIncome;
+  const projectedAfterBills = projectedAvailable - totalRemaining;
 
-  const summaryCards = [
-    { label: "Saldo Anterior", value: formatBrl(carryover), color: carryover >= 0 ? "text-primary" : "text-destructive" },
-    { label: "Saldo Bancário", value: formatBrl(totalBankBalance), color: totalBankBalance >= 0 ? "text-primary" : "text-destructive" },
-    { label: "Entradas Previstas", value: formatBrl(totalIncome), color: "text-primary" },
-    { label: "Entradas Recebidas", value: formatBrl(totalReceivedIncome), color: "text-primary" },
-    { label: "Pago no Mês", value: formatBrl(totalPaid), color: "text-green-400" },
-    { label: "Previsto a Pagar", value: formatBrl(totalRemaining), color: "text-blue-200" },
-    { label: "Total do Mês", value: formatBrl(totalMonth), color: "text-blue-100" },
-    { label: "Fluxo de Caixa", value: formatBrl(cashFlow), color: cashFlow >= 0 ? "text-primary" : "text-destructive" },
-  ];
+  const statusText = projectedAfterBills >= 0
+    ? `Depois das entradas pendentes, sobra ${formatBrl(projectedAfterBills)}.`
+    : `Mesmo com as entradas pendentes, faltarão ${formatBrl(Math.abs(projectedAfterBills))}.`;
 
   const pieData = cards.map(card => {
     const value = card.items.reduce((sum, item) => sum + parseMoney(item.value), 0);
@@ -71,20 +68,59 @@ export default function SummaryDashboard({ monthId }: { monthId: number }) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4 xl:grid-cols-8">
-      {summaryCards.map((card, idx) => (
-        <div
-          key={idx}
-          className="rounded-2xl border border-white/5 bg-zinc-900/50 backdrop-blur-md p-3 text-center shadow-sm sm:p-4 transition-all hover:bg-zinc-800/50"
-        >
-          <div className="mb-1 text-[10px] font-medium tracking-wide text-zinc-400">
-            {card.label}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.1fr_1.9fr]">
+        <div className={`rounded-2xl border p-5 shadow-sm ${projectedAfterBills >= 0 ? "border-primary/30 bg-primary/10" : "border-red-500/30 bg-red-950/20"}`}>
+          <div className="text-[11px] font-mono uppercase tracking-widest text-zinc-400">Situação do mês</div>
+          <div className={`mt-2 text-2xl font-bold font-mono sm:text-3xl ${projectedAfterBills >= 0 ? "text-primary" : "text-red-400"}`}>
+            {formatBrl(projectedAfterBills)}
           </div>
-          <div className={`text-xs font-bold font-mono sm:text-sm md:text-base ${card.color}`} >
-            {card.value}
+          <p className="mt-2 text-sm text-zinc-300">
+            {statusText}
+          </p>
+          <div className="mt-4 grid grid-cols-2 gap-2 text-xs font-mono">
+            <MiniMetric label="Disponível agora" value={availableNow} tone={availableNow >= 0 ? "good" : "bad"} />
+            <MiniMetric label="Contas abertas" value={totalRemaining} tone="info" />
           </div>
         </div>
-      ))}
+
+        <div className="rounded-2xl border border-white/5 bg-zinc-900/50 p-4 shadow-sm">
+          <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h3 className="text-xs font-mono uppercase tracking-widest text-primary">Resumo autoexplicativo</h3>
+              <p className="text-xs text-zinc-400">Da esquerda para direita: dinheiro disponível, dinheiro que falta entrar e compromissos do mês.</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <SummaryGroup
+              title="Dinheiro disponível"
+              description="O que já está nos bancos, somado ao saldo anterior."
+              items={[
+                { label: "Saldos nos bancos", value: totalBankBalance },
+                { label: "Saldo anterior", value: carryover },
+                { label: "Disponível agora", value: availableNow, strong: true },
+              ]}
+            />
+            <SummaryGroup
+              title="Entradas"
+              description="Receitas do mês, separando o que já entrou do que ainda está previsto."
+              items={[
+                { label: "Já recebido", value: totalReceivedIncome, tone: "good" },
+                { label: "Ainda previsto", value: expectedIncome },
+                { label: "Total previsto", value: totalIncome, strong: true },
+              ]}
+            />
+            <SummaryGroup
+              title="Contas do mês"
+              description="Tudo que já foi pago mais o que ainda precisa pagar."
+              items={[
+                { label: "Já pago", value: totalPaid, tone: "good" },
+                { label: "Ainda falta pagar", value: totalRemaining, tone: "bad" },
+                { label: "Total do mês", value: totalMonth, strong: true },
+              ]}
+            />
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -145,6 +181,51 @@ export default function SummaryDashboard({ monthId }: { monthId: number }) {
             )}
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+type Tone = "default" | "good" | "bad" | "info";
+
+function toneClass(tone: Tone = "default") {
+  if (tone === "good") return "text-green-400";
+  if (tone === "bad") return "text-red-400";
+  if (tone === "info") return "text-blue-200";
+  return "text-zinc-100";
+}
+
+function MiniMetric({ label, value, tone = "default" }: { label: string; value: number; tone?: Tone }) {
+  return (
+    <div className="rounded-lg border border-white/5 bg-black/20 p-3">
+      <div className="text-[10px] uppercase tracking-widest text-zinc-500">{label}</div>
+      <div className={`mt-1 font-bold ${toneClass(tone)}`}>{formatBrl(value)}</div>
+    </div>
+  );
+}
+
+function SummaryGroup({
+  title,
+  description,
+  items,
+}: {
+  title: string;
+  description: string;
+  items: Array<{ label: string; value: number; strong?: boolean; tone?: Tone }>;
+}) {
+  return (
+    <div className="rounded-xl border border-white/5 bg-black/20 p-4">
+      <h4 className="text-sm font-semibold text-white">{title}</h4>
+      <p className="mt-1 min-h-[32px] text-xs leading-5 text-zinc-500">{description}</p>
+      <div className="mt-3 space-y-2">
+        {items.map(item => (
+          <div key={item.label} className={`flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 ${item.strong ? "bg-white/5" : ""}`}>
+            <span className="text-xs text-zinc-400">{item.label}</span>
+            <span className={`text-sm font-bold font-mono ${item.strong ? "text-primary" : toneClass(item.tone)}`}>
+              {formatBrl(item.value)}
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   );
