@@ -22,6 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import GoalsPanel from "@/components/GoalsPanel";
 import AnalyticsPanel from "@/components/AnalyticsPanel";
 import PaymentSimulator from "@/components/PaymentSimulator";
+import PriorityList from "@/components/PriorityList";
 import QuickAddDialog from "@/components/QuickAddDialog";
 import { Sparkles } from "lucide-react";
 
@@ -427,6 +428,7 @@ export default function Dashboard() {
               <TabsList className="flex h-auto w-full overflow-x-auto whitespace-nowrap justify-start sm:w-auto pb-1">
                 <TabsTrigger value="overview" className="text-xs sm:text-sm py-2 px-3">Visão Geral</TabsTrigger>
                 <TabsTrigger value="priorities" className="text-xs sm:text-sm py-2 px-3">Prioridades</TabsTrigger>
+                <TabsTrigger value="simulator" className="text-xs sm:text-sm py-2 px-3">Simulador</TabsTrigger>
                 <TabsTrigger value="expenses" className="text-xs sm:text-sm py-2 px-3">Despesas</TabsTrigger>
                 <TabsTrigger value="income" className="text-xs sm:text-sm py-2 px-3">Receitas</TabsTrigger>
                 <TabsTrigger value="goals" className="text-xs sm:text-sm py-2 px-3">Metas</TabsTrigger>
@@ -444,6 +446,10 @@ export default function Dashboard() {
             </TabsContent>
 
             <TabsContent value="priorities" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
+              <PriorityList monthId={selectedMonthId} />
+            </TabsContent>
+
+            <TabsContent value="simulator" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
               <PaymentSimulator monthId={selectedMonthId} />
             </TabsContent>
 
