@@ -24,6 +24,7 @@ import AnalyticsPanel from "@/components/AnalyticsPanel";
 import PaymentSimulator from "@/components/PaymentSimulator";
 import QuickAddDialog from "@/components/QuickAddDialog";
 import OfxImportPanel from "@/components/OfxImportPanel";
+import OnboardingTutorial from "@/components/OnboardingTutorial";
 import { Sparkles } from "lucide-react";
 
 export default function Dashboard() {
@@ -404,6 +405,7 @@ export default function Dashboard() {
           </div>
 
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <OnboardingTutorial />
             <span className="text-xs font-mono text-gray-500 hidden md:block">{user?.name}</span>
             <Button variant="ghost" size="sm" onClick={logout} className="text-gray-400 hover:text-red-400 h-8 w-8 p-0">
               <LogOut className="w-4 h-4" />
