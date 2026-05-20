@@ -22,7 +22,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import GoalsPanel from "@/components/GoalsPanel";
 import AnalyticsPanel from "@/components/AnalyticsPanel";
 import PaymentSimulator from "@/components/PaymentSimulator";
-import PriorityList from "@/components/PriorityList";
 import QuickAddDialog from "@/components/QuickAddDialog";
 import { Sparkles } from "lucide-react";
 
@@ -442,11 +441,10 @@ export default function Dashboard() {
 
             <TabsContent value="overview" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
               <SummaryDashboard monthId={selectedMonthId} />
-              <CashFlowTimeline monthId={selectedMonthId} />
             </TabsContent>
 
             <TabsContent value="priorities" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
-              <PriorityList monthId={selectedMonthId} />
+              <CashFlowTimeline monthId={selectedMonthId} />
             </TabsContent>
 
             <TabsContent value="simulator" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
