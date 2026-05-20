@@ -2,7 +2,7 @@ services:
   - type: web
     name: controle-contas-app
     env: node
-    plan: free
+    plan: starter
     region: ohio
     buildCommand: npm install -g pnpm && pnpm install && pnpm run build
     startCommand: npm run start
