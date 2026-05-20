@@ -6,15 +6,16 @@ import { trpc } from "@/lib/trpc";
 
 export default function AdminUsersPanel() {
   const usersQuery = trpc.users.list.useQuery();
+  const orgsQuery = trpc.organizations.list.useQuery();
   const createUser = trpc.users.create.useMutation({
-    onSuccess: () => {
+    onSuccess: (member) => {
       usersQuery.refetch();
       setName("");
       setUsername("");
       setEmail("");
       setPassword("");
       setRole("viewer");
-      toast.success("Membro criado neste centro");
+      toast.success(`${member.name || member.username || "Usuário"} agora tem acesso a ${activeOrganizationName}`);
     },
     onError: (error) => toast.error(error.message || "Não foi possível criar o usuário"),
   });
@@ -42,13 +43,15 @@ export default function AdminUsersPanel() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"admin" | "finance" | "viewer">("viewer");
+  const activeOrganization = orgsQuery.data?.organizations.find(org => org.id === orgsQuery.data?.activeOrganizationId);
+  const activeOrganizationName = activeOrganization?.name || "este centro";
 
   const handleCreate = () => {
     if (!name.trim() || !username.trim() || !password.trim()) {
       toast.error("Informe nome, usuário e senha");
       return;
     }
-    createUser.mutate({ name, username, email, password, role });
+    createUser.mutate({ name, username: username.trim().toLowerCase(), email, password, role });
   };
 
   const handleResetPassword = (id: number, displayName: string | null) => {
@@ -68,11 +71,14 @@ export default function AdminUsersPanel() {
           </span>
           <h2 className="text-sm font-mono uppercase tracking-widest text-primary">Usuários e Acessos</h2>
         </div>
-        <span className="text-[10px] font-mono uppercase text-gray-500">Membros veem apenas este centro</span>
+        <span className="text-[10px] font-mono uppercase text-gray-500">Membros veem apenas o centro ativo</span>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] gap-4">
         <div className="rounded border border-border bg-black/25 p-3 space-y-3">
+          <div className="rounded border border-primary/30 bg-primary/10 px-3 py-2 text-[11px] font-mono text-primary">
+            Adicionando acesso em: <span className="font-bold text-white">{activeOrganizationName}</span>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <input className="bg-background/50 border border-border rounded px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-cyan-400" value={name} onChange={event => setName(event.target.value)} placeholder="Nome" />
             <input className="bg-background/50 border border-border rounded px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-cyan-400" value={username} onChange={event => setUsername(event.target.value)} placeholder="Usuário" />
@@ -87,7 +93,7 @@ export default function AdminUsersPanel() {
             </select>
 
             <Button onClick={handleCreate} disabled={createUser.isPending} size="sm" className="gap-1 text-xs" >
-              <Plus className="h-3 w-3" /> Criar
+              <Plus className="h-3 w-3" /> Adicionar ao centro
             </Button>
           </div>
         </div>

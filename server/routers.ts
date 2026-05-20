@@ -364,7 +364,9 @@ export const appRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         const organization = await requireOrganizationAdmin(ctx);
-        const existingUser = await db.getUserByUsername(input.username);
+        const username = input.username.trim().toLowerCase();
+        const email = input.email ? input.email.trim().toLowerCase() : null;
+        const existingUser = await db.getUserByUsername(username);
         
         if (existingUser) {
           const existingMembership = await db.getOrganizationMembership(existingUser.id, organization.id);
@@ -377,9 +379,9 @@ export const appRouter = router({
         }
 
         const created = await db.createPasswordUser({
-          username: input.username,
-          name: input.name,
-          email: input.email || null,
+          username,
+          name: input.name.trim(),
+          email,
           passwordHash: hashPassword(input.password),
           role: "user",
           createDefaultOrganization: false,
