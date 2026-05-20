@@ -91,6 +91,12 @@ export default function Login() {
             />
           </div>
 
+          <div className="text-right">
+            <Link href="/forgot-password" className="text-xs text-primary hover:underline font-medium">
+              Esqueci minha senha
+            </Link>
+          </div>
+
           <Button
             type="submit"
             disabled={login.isPending}

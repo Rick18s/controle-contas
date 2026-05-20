@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/neon-http";
 import { neon } from "@neondatabase/serverless";
 import fs from "fs";
 import path from "path";
-import { InsertUser, User, users, organizations, organizationMembers, months, expenseCards, expenseItems, incomeEntries, bankBalances, goals } from "../drizzle/schema";
+import { InsertUser, PasswordResetToken, User, users, passwordResetTokens, organizations, organizationMembers, months, expenseCards, expenseItems, incomeEntries, bankBalances, goals } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -90,6 +90,14 @@ export async function getUserByUsername(username: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+export async function getUserByEmail(email: string) {
+  const normalized = email.trim().toLowerCase();
+  const db = await getDb();
+  if (!db) return memoryUsers.find(user => user.email?.toLowerCase() === normalized);
+  const result = await db.select().from(users).where(eq(users.email, normalized)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
 export async function getUserById(userId: number) {
   const db = await getDb();
   if (!db) return memoryUsers.find(user => user.id === userId);
@@ -156,6 +164,46 @@ export async function updateUserPassword(userId: number, passwordHash: string) {
     return;
   }
   await db.update(users).set({ passwordHash }).where(eq(users.id, userId));
+}
+
+export async function createPasswordResetToken(userId: number, tokenHash: string, expiresAt: Date) {
+  const db = await getDb();
+  if (!db) {
+    memoryPasswordResetTokens.push({
+      id: memoryNextId++,
+      userId,
+      tokenHash,
+      expiresAt,
+      usedAt: null,
+      createdAt: new Date(),
+    });
+    persistMemoryData();
+    return;
+  }
+  await db.insert(passwordResetTokens).values({ userId, tokenHash, expiresAt });
+}
+
+export async function getValidPasswordResetToken(tokenHash: string) {
+  const now = new Date();
+  const db = await getDb();
+  if (!db) {
+    return memoryPasswordResetTokens.find(token => token.tokenHash === tokenHash && !token.usedAt && token.expiresAt > now);
+  }
+  const result = await db.select().from(passwordResetTokens).where(eq(passwordResetTokens.tokenHash, tokenHash)).limit(1);
+  const token = result[0];
+  if (!token || token.usedAt || token.expiresAt <= now) return undefined;
+  return token;
+}
+
+export async function markPasswordResetTokenUsed(tokenId: number) {
+  const db = await getDb();
+  if (!db) {
+    const token = memoryPasswordResetTokens.find(existing => existing.id === tokenId);
+    if (token) token.usedAt = new Date();
+    persistMemoryData();
+    return;
+  }
+  await db.update(passwordResetTokens).set({ usedAt: new Date() }).where(eq(passwordResetTokens.id, tokenId));
 }
 
 export async function updateUserStatus(userId: number, active: number) {
@@ -258,6 +306,7 @@ type MemoryItem = {
 type MemoryIncome = { id: number; monthId: number; name: string; value: string; received: number; receivedAccountName?: string | null; sortOrder: number | null };
 type MemoryBalance = { id: number; monthId: number; accountName: string; balance: string; sortOrder: number | null };
 type MemoryGoal = { id: number; organizationId: number; name: string; term: "short" | "medium" | "long"; targetValue: string; savedValue: string; sortOrder: number | null };
+type MemoryPasswordResetToken = PasswordResetToken;
 
 let memoryNextId = 1;
 const memoryMonths: MemoryMonth[] = [];
@@ -266,6 +315,7 @@ const memoryItems: MemoryItem[] = [];
 const memoryIncome: MemoryIncome[] = [];
 const memoryBalances: MemoryBalance[] = [];
 const memoryUsers: User[] = [];
+const memoryPasswordResetTokens: MemoryPasswordResetToken[] = [];
 const memoryOrganizations: MemoryOrganization[] = [];
 const memoryOrganizationMembers: MemoryOrganizationMember[] = [];
 const memoryGoals: MemoryGoal[] = [];
@@ -273,6 +323,7 @@ const memoryGoals: MemoryGoal[] = [];
 type MemorySnapshot = {
   memoryNextId?: number;
   users?: User[];
+  passwordResetTokens?: MemoryPasswordResetToken[];
   organizations?: MemoryOrganization[];
   organizationMembers?: MemoryOrganizationMember[];
   months?: MemoryMonth[];
@@ -313,6 +364,12 @@ function ensureMemoryLoaded() {
       updatedAt: toDate(user.updatedAt),
       lastSignedIn: user.lastSignedIn ? toDate(user.lastSignedIn) : null,
     })));
+    replaceMemory(memoryPasswordResetTokens, (snapshot.passwordResetTokens ?? []).map(token => ({
+      ...token,
+      expiresAt: toDate(token.expiresAt),
+      usedAt: token.usedAt ? toDate(token.usedAt) : null,
+      createdAt: toDate(token.createdAt),
+    })));
     replaceMemory(memoryOrganizations, (snapshot.organizations ?? []).map(org => ({ ...org, createdAt: toDate(org.createdAt) })));
     replaceMemory(memoryOrganizationMembers, (snapshot.organizationMembers ?? []).map(member => ({ ...member, createdAt: toDate(member.createdAt) })));
     replaceMemory(memoryMonths, (snapshot.months ?? []).map(month => ({ ...month, createdAt: month.createdAt ? toDate(month.createdAt) : undefined })));
@@ -332,6 +389,7 @@ function persistMemoryData() {
   const snapshot: MemorySnapshot = {
     memoryNextId,
     users: memoryUsers,
+    passwordResetTokens: memoryPasswordResetTokens,
     organizations: memoryOrganizations,
     organizationMembers: memoryOrganizationMembers,
     months: memoryMonths,
@@ -615,6 +673,59 @@ export async function deleteMonth(monthId: number) {
   await db.delete(incomeEntries).where(eq(incomeEntries.monthId, monthId));
   await db.delete(bankBalances).where(eq(bankBalances.monthId, monthId));
   await db.delete(months).where(eq(months.id, monthId));
+}
+
+async function deleteMonthCollections(monthIds: number[]) {
+  const uniqueMonthIds = Array.from(new Set(monthIds));
+  for (const monthId of uniqueMonthIds) await deleteMonth(monthId);
+}
+
+export async function deleteUserAccount(userId: number) {
+  const db = await getDb();
+  if (!db) {
+    const ownedOrganizationIds = memoryOrganizations.filter(org => org.ownerUserId === userId).map(org => org.id);
+    const monthIds = memoryMonths
+      .filter(month => month.userId === userId || ownedOrganizationIds.includes(month.organizationId))
+      .map(month => month.id);
+
+    await deleteMonthCollections(monthIds);
+
+    for (let index = memoryGoals.length - 1; index >= 0; index -= 1) {
+      if (ownedOrganizationIds.includes(memoryGoals[index].organizationId)) memoryGoals.splice(index, 1);
+    }
+    for (let index = memoryOrganizationMembers.length - 1; index >= 0; index -= 1) {
+      const member = memoryOrganizationMembers[index];
+      if (member.userId === userId || ownedOrganizationIds.includes(member.organizationId)) memoryOrganizationMembers.splice(index, 1);
+    }
+    for (let index = memoryOrganizations.length - 1; index >= 0; index -= 1) {
+      if (ownedOrganizationIds.includes(memoryOrganizations[index].id)) memoryOrganizations.splice(index, 1);
+    }
+    for (let index = memoryPasswordResetTokens.length - 1; index >= 0; index -= 1) {
+      if (memoryPasswordResetTokens[index].userId === userId) memoryPasswordResetTokens.splice(index, 1);
+    }
+    const userIndex = memoryUsers.findIndex(user => user.id === userId);
+    if (userIndex >= 0) memoryUsers.splice(userIndex, 1);
+    persistMemoryData();
+    return;
+  }
+
+  const ownedOrganizations = await db.select().from(organizations).where(eq(organizations.ownerUserId, userId));
+  const ownedOrganizationIds = ownedOrganizations.map(org => org.id);
+  const monthRows = await db.select().from(months);
+  const monthIds = monthRows
+    .filter(month => month.userId === userId || ownedOrganizationIds.includes(month.organizationId))
+    .map(month => month.id);
+
+  await deleteMonthCollections(monthIds);
+
+  for (const organizationId of ownedOrganizationIds) {
+    await db.delete(goals).where(eq(goals.organizationId, organizationId));
+    await db.delete(organizationMembers).where(eq(organizationMembers.organizationId, organizationId));
+    await db.delete(organizations).where(eq(organizations.id, organizationId));
+  }
+  await db.delete(organizationMembers).where(eq(organizationMembers.userId, userId));
+  await db.delete(passwordResetTokens).where(eq(passwordResetTokens.userId, userId));
+  await db.delete(users).where(eq(users.id, userId));
 }
 
 // ============ EXPENSE CARDS ============

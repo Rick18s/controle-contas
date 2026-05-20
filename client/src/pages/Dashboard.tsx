@@ -23,6 +23,7 @@ import GoalsPanel from "@/components/GoalsPanel";
 import AnalyticsPanel from "@/components/AnalyticsPanel";
 import PaymentSimulator from "@/components/PaymentSimulator";
 import QuickAddDialog from "@/components/QuickAddDialog";
+import OfxImportPanel from "@/components/OfxImportPanel";
 import { Sparkles } from "lucide-react";
 
 export default function Dashboard() {
@@ -430,6 +431,7 @@ export default function Dashboard() {
                 <TabsTrigger value="simulator" className="text-xs sm:text-sm py-2 px-3">Simulador</TabsTrigger>
                 <TabsTrigger value="expenses" className="text-xs sm:text-sm py-2 px-3">Despesas</TabsTrigger>
                 <TabsTrigger value="income" className="text-xs sm:text-sm py-2 px-3">Receitas</TabsTrigger>
+                <TabsTrigger value="import" className="text-xs sm:text-sm py-2 px-3">Importar</TabsTrigger>
                 <TabsTrigger value="goals" className="text-xs sm:text-sm py-2 px-3">Metas</TabsTrigger>
                 <TabsTrigger value="analytics" className="text-xs sm:text-sm py-2 px-3">Análises</TabsTrigger>
                 <TabsTrigger value="balances" className="text-xs sm:text-sm py-2 px-3">Saldos</TabsTrigger>
@@ -457,6 +459,10 @@ export default function Dashboard() {
 
             <TabsContent value="income" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
               <IncomePanel monthId={selectedMonthId} />
+            </TabsContent>
+
+            <TabsContent value="import" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
+              <OfxImportPanel monthId={selectedMonthId} />
             </TabsContent>
 
             <TabsContent value="goals" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">

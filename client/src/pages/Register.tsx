@@ -10,6 +10,7 @@ export default function Register() {
   const { loading, isAuthenticated, refresh } = useAuth();
   const [, setLocation] = useLocation();
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
@@ -30,7 +31,7 @@ export default function Register() {
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!name || !username || !password) {
+    if (!name || !email || !username || !password) {
       toast.error("Preencha todos os campos");
       return;
     }
@@ -38,7 +39,7 @@ export default function Register() {
       toast.error("A senha deve ter no mínimo 6 caracteres");
       return;
     }
-    register.mutate({ name, username, password });
+    register.mutate({ name, email, username, password });
   };
 
   if (loading) {
@@ -77,6 +78,21 @@ export default function Register() {
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="Como quer ser chamado"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground/80" htmlFor="email">
+              E-mail
+            </label>
+            <input
+              id="email"
+              className="w-full bg-background/50 border border-border/50 rounded-lg px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              autoComplete="email"
+              placeholder="voce@email.com"
             />
           </div>
 

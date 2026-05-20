@@ -1,5 +1,6 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
+import crypto from "crypto";
 import { systemRouter } from "./_core/systemRouter";
 import { ENV } from "./_core/env";
 import { sdk } from "./_core/sdk";
@@ -11,6 +12,7 @@ import { getDb } from "./db";
 import { months } from "../drizzle/schema";
 import { invokeLLM } from "./_core/llm";
 import { eq } from "drizzle-orm";
+import { sendPasswordResetEmail } from "./_core/email";
 
 const ACTIVE_ORG_COOKIE = "active_organization_id";
 
@@ -174,6 +176,10 @@ function formatMoneyValue(value: number) {
   return value.toFixed(2);
 }
 
+function hashSecureToken(token: string) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
 async function adjustBankBalance(monthId: number, accountName: string | null | undefined, delta: number) {
   const normalizedAccountName = accountName?.trim();
   if (!normalizedAccountName || !Number.isFinite(delta) || delta === 0) return;
@@ -257,13 +263,48 @@ export const appRouter = router({
         await db.updateUserPassword(ctx.user.id, hashPassword(input.newPassword));
         return { success: true };
       }),
+    requestPasswordReset: publicProcedure
+      .input(z.object({ email: z.string().email() }))
+      .mutation(async ({ input }) => {
+        const email = input.email.trim().toLowerCase();
+        const user = await db.getUserByEmail(email);
+
+        if (user?.id && user.active === 1) {
+          const token = crypto.randomBytes(32).toString("hex");
+          const tokenHash = hashSecureToken(token);
+          const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+          await db.createPasswordResetToken(user.id, tokenHash, expiresAt);
+          const resetUrl = `${ENV.appUrl.replace(/\/$/, "")}/reset-password?token=${encodeURIComponent(token)}`;
+          await sendPasswordResetEmail(email, resetUrl);
+        }
+
+        return { success: true };
+      }),
+    resetPassword: publicProcedure
+      .input(z.object({ token: z.string().min(20), newPassword: z.string().min(6) }))
+      .mutation(async ({ input }) => {
+        const token = await db.getValidPasswordResetToken(hashSecureToken(input.token));
+        if (!token) throw new Error("Link inválido ou expirado");
+        await db.updateUserPassword(token.userId, hashPassword(input.newPassword));
+        await db.markPasswordResetTokenUsed(token.id);
+        return { success: true };
+      }),
+    deleteAccount: protectedProcedure
+      .input(z.object({ confirmation: z.literal("EXCLUIR") }))
+      .mutation(async ({ ctx }) => {
+        await db.deleteUserAccount(ctx.user.id);
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+        ctx.res.clearCookie(ACTIVE_ORG_COOKIE, { ...cookieOptions, maxAge: -1 });
+        return { success: true };
+      }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return { success: true } as const;
     }),
     register: publicProcedure
-      .input(z.object({ name: z.string().min(2), username: z.string().min(3), password: z.string().min(6) }))
+      .input(z.object({ name: z.string().min(2), email: z.string().email().optional().or(z.literal("")), username: z.string().min(3), password: z.string().min(6) }))
       .mutation(async ({ ctx, input }) => {
         const username = input.username.trim().toLowerCase();
         let existingUser = await db.getUserByUsername(username);
@@ -274,6 +315,7 @@ export const appRouter = router({
         const user = await db.createPasswordUser({
           username,
           name: input.name,
+          email: input.email ? input.email.trim().toLowerCase() : null,
           passwordHash: hashPassword(input.password),
           role: "user",
         });
