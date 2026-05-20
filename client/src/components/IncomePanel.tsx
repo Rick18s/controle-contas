@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, Check } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { formatBrl, parseMoney } from "@/lib/money";
 import { Label } from "@/components/ui/label";
@@ -171,18 +171,15 @@ function IncomeEntryCard({ entry, isEditing, onEdit, onClose, onUpdate, onDelete
 }) {
   const [name, setName] = useState(entry.name);
   const [value, setValue] = useState(entry.value);
-  const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     setName(entry.name);
     setValue(entry.value);
   }, [entry]);
 
-  const autoSave = (patch: { name?: string; value?: string }) => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      onUpdate(patch);
-    }, 600);
+  const saveEdit = () => {
+    onUpdate({ name, value });
+    onClose();
   };
 
   if (isEditing) {
@@ -193,7 +190,7 @@ function IncomeEntryCard({ entry, isEditing, onEdit, onClose, onUpdate, onDelete
           <input
             className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
             value={name}
-            onChange={e => { setName(e.target.value); autoSave({ name: e.target.value, value }); }}
+            onChange={e => setName(e.target.value)}
             placeholder="Ex: Salário"
             autoFocus
           />
@@ -205,12 +202,12 @@ function IncomeEntryCard({ entry, isEditing, onEdit, onClose, onUpdate, onDelete
             type="number"
             step="0.01"
             value={value}
-            onChange={e => { setValue(e.target.value); autoSave({ name, value: e.target.value }); }}
+            onChange={e => setValue(e.target.value)}
             placeholder="0.00"
           />
         </div>
         <div className="flex justify-end pt-1">
-          <Button size="sm" variant="ghost" onClick={onClose} className="text-muted-foreground hover:text-foreground text-xs h-7">Concluir Edição</Button>
+          <Button size="sm" variant="ghost" onClick={saveEdit} className="text-muted-foreground hover:text-foreground text-xs h-7">Concluir Edição</Button>
         </div>
       </div>
     );

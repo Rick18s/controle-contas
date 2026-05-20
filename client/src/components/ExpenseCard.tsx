@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, Edit2 } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { formatBrl, getPaidAmount, getRemainingAmount, parseMoney } from "@/lib/money";
 import { CardCategoryIcon } from "@/components/CardCategoryIcon";
@@ -243,7 +243,6 @@ function ItemRow({ item, isEditing, onEdit, onClose, onRefresh, onBalancesRefres
   const [priority, setPriority] = useState(getItemPriority(item.name));
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [paymentAccountName, setPaymentAccountName] = useState("");
-  const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   const updateItem = trpc.items.update.useMutation({
     onSuccess: () => {
@@ -264,14 +263,26 @@ function ItemRow({ item, isEditing, onEdit, onClose, onRefresh, onBalancesRefres
     setPriority(getItemPriority(item.name));
   }, [item]);
 
-  const autoSave = (patch: Partial<{ name: string; dueDate: string; value: string; paidValue: string; paidAccountName: string | null; status: "pago" | "parcial" | "pendente" }>) => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      updateItem.mutate({ id: item.id, ...patch });
-    }, 600);
-  };
-
   const savedName = (nextName = name, nextPriority = priority) => withPriority(nextName, nextPriority);
+
+  const saveEdit = () => {
+    const paidAmount = parseMoney(paidValue);
+    const accountName = paidAccountName.trim();
+    if (paidAmount > 0 && !accountName) {
+      toast.error("Informe de qual banco saiu o pagamento");
+      return;
+    }
+    updateItem.mutate({
+      id: item.id,
+      name: savedName(),
+      dueDate,
+      value,
+      paidValue: paidAmount > 0 ? paidValue : "0.00",
+      paidAccountName: paidAmount > 0 ? accountName : null,
+      status,
+    });
+    onClose();
+  };
 
   const statusColors: Record<string, string> = {
     pago: 'bg-green-500/10 text-green-400 border-green-500/20',
@@ -288,7 +299,7 @@ function ItemRow({ item, isEditing, onEdit, onClose, onRefresh, onBalancesRefres
             <input
               className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
               value={name}
-              onChange={e => { setName(e.target.value); autoSave({ name: savedName(e.target.value), dueDate, value, paidValue, status }); }}
+              onChange={e => setName(e.target.value)}
               placeholder="Ex: Aluguel"
               autoFocus
             />
@@ -298,7 +309,7 @@ function ItemRow({ item, isEditing, onEdit, onClose, onRefresh, onBalancesRefres
             <input
               className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
               value={dueDate}
-              onChange={e => { setDueDate(e.target.value); autoSave({ name: savedName(), dueDate: e.target.value, value, paidValue, status }); }}
+              onChange={e => setDueDate(e.target.value)}
               placeholder="Ex: 20/05"
             />
           </div>
@@ -320,7 +331,6 @@ function ItemRow({ item, isEditing, onEdit, onClose, onRefresh, onBalancesRefres
                 if (Number(newVal) > 0 && Number(paidValue) >= Number(newVal)) s = "pago";
                 else if (Number(paidValue) > 0) s = "parcial";
                 setStatus(s);
-                autoSave({ name: savedName(), dueDate, value: newVal, paidValue, status: s }); 
               }}
               placeholder="0.00"
             />
@@ -344,7 +354,6 @@ function ItemRow({ item, isEditing, onEdit, onClose, onRefresh, onBalancesRefres
                   s = nextPaidAmount >= Number(value) ? "pago" : "parcial";
                 }
                 setStatus(s);
-                autoSave({ name: savedName(), dueDate, value, paidValue: newPaid, paidAccountName: nextAccount || null, status: s });
               }}
               placeholder="0.00"
             />
@@ -353,10 +362,7 @@ function ItemRow({ item, isEditing, onEdit, onClose, onRefresh, onBalancesRefres
             <Label className="text-[10px] uppercase text-muted-foreground">Prioridade</Label>
             <Select
               value={priority}
-              onValueChange={(nextPriority) => {
-                setPriority(nextPriority);
-                autoSave({ name: savedName(name, nextPriority), dueDate, value, paidValue, status });
-              }}
+              onValueChange={setPriority}
             >
               <SelectTrigger className="w-full h-[34px] bg-background">
                 <SelectValue placeholder="Prioridade" />
@@ -376,7 +382,6 @@ function ItemRow({ item, isEditing, onEdit, onClose, onRefresh, onBalancesRefres
               onChange={(event) => {
                 const nextAccount = event.target.value;
                 setPaidAccountName(nextAccount);
-                autoSave({ name: savedName(), dueDate, value, paidValue, paidAccountName: nextAccount || null, status });
               }}
               placeholder={parseMoney(paidValue) > 0 ? "Ex: Inter, C6, Caixa" : "Sem pagamento"}
               disabled={parseMoney(paidValue) <= 0}
@@ -391,7 +396,9 @@ function ItemRow({ item, isEditing, onEdit, onClose, onRefresh, onBalancesRefres
         </div>
 
         <div className="flex justify-end pt-1">
-          <Button size="sm" variant="ghost" onClick={onClose} className="text-muted-foreground hover:text-foreground text-xs h-7">Concluir Edição</Button>
+          <Button size="sm" variant="ghost" onClick={saveEdit} disabled={updateItem.isPending} className="text-muted-foreground hover:text-foreground text-xs h-7">
+            {updateItem.isPending ? "Salvando..." : "Concluir Edição"}
+          </Button>
         </div>
       </div>
     );
