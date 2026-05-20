@@ -76,8 +76,8 @@ export default function AnalyticsPanel() {
                 />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend wrapperStyle={{ fontSize: '11px', fontFamily: 'Plus Jakarta Sans', paddingTop: '10px' }} />
-                <Bar dataKey="totalIncome" name="Receitas" fill="#00f0ff" radius={[4, 4, 0, 0]} maxBarSize={40} />
-                <Bar dataKey="totalExpense" name="Despesas" fill="#ff3333" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                <Bar dataKey="totalIncome" name="Receitas" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                <Bar dataKey="totalExpense" name="Despesas" fill="#a855f7" radius={[4, 4, 0, 0]} maxBarSize={40} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -90,9 +90,9 @@ export default function AnalyticsPanel() {
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={analytics} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <defs>
-                  <linearGradient id="colorCarryover" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#39ff14" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#39ff14" stopOpacity={0}/>
+                  <linearGradient id="colorCarryoverAnalytics" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
@@ -117,10 +117,10 @@ export default function AnalyticsPanel() {
                   type="monotone" 
                   dataKey="finalCarryover" 
                   name="Saldo Fim do Mês" 
-                  stroke="#39ff14" 
+                  stroke="#3b82f6" 
                   strokeWidth={2}
                   fillOpacity={1} 
-                  fill="url(#colorCarryover)" 
+                  fill="url(#colorCarryoverAnalytics)" 
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -153,7 +153,7 @@ export default function AnalyticsPanel() {
                 <Legend wrapperStyle={{ fontSize: '11px', fontFamily: 'Plus Jakarta Sans', paddingTop: '10px' }} />
                 <Bar dataKey="surplus" name="Sobra do Mês">
                   {analytics.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.surplus >= 0 ? '#39ff14' : '#ff3333'} />
+                    <Cell key={`cell-${index}`} fill={entry.surplus >= 0 ? '#10b981' : '#f43f5e'} />
                   ))}
                 </Bar>
               </BarChart>
