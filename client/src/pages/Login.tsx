@@ -5,6 +5,7 @@ import { useLocation, Link } from "wouter";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Loader2, ArrowRight } from "lucide-react";
+import BrandLogo from "@/components/BrandLogo";
 
 export default function Login() {
   const { loading, isAuthenticated, refresh } = useAuth();
@@ -53,9 +54,9 @@ export default function Login() {
 
       <div className="relative z-10 w-full max-w-md">
         <div className="text-center mb-8">
-          <Link href="/" className="inline-block mb-6 text-xl font-bold tracking-normal text-foreground hover:opacity-80 transition-opacity">
-            Controle de Contas
-          </Link>
+          <div className="mb-6 flex justify-center">
+            <BrandLogo href="/" size="md" />
+          </div>
           <h1 className="text-3xl font-semibold tracking-normal text-foreground mb-2">Bem-vindo de volta</h1>
           <p className="text-sm text-muted-foreground">
             Acesse sua conta para gerenciar suas finanças

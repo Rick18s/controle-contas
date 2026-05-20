@@ -4,6 +4,7 @@ import { ArrowLeft, Check, Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Link, useLocation } from "wouter";
+import BrandLogo from "@/components/BrandLogo";
 
 export default function ResetPassword() {
   const [, setLocation] = useLocation();
@@ -36,6 +37,9 @@ export default function ResetPassword() {
     <div className="min-h-screen flex flex-col items-center justify-center relative px-4 overflow-hidden">
       <div className="relative z-10 w-full max-w-md">
         <div className="text-center mb-8">
+          <div className="mb-6 flex justify-center">
+            <BrandLogo href="/" size="md" />
+          </div>
           <Link href="/login" className="inline-flex items-center gap-2 mb-6 text-sm text-muted-foreground hover:text-primary transition-colors">
             <ArrowLeft className="h-4 w-4" />
             Voltar ao login

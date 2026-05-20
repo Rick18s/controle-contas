@@ -25,6 +25,7 @@ import PaymentSimulator from "@/components/PaymentSimulator";
 import QuickAddDialog from "@/components/QuickAddDialog";
 import OfxImportPanel from "@/components/OfxImportPanel";
 import OnboardingTutorial from "@/components/OnboardingTutorial";
+import BrandLogo from "@/components/BrandLogo";
 import { Sparkles } from "lucide-react";
 
 export default function Dashboard() {
@@ -314,9 +315,7 @@ export default function Dashboard() {
       {/* Header */}
       <header className="border-b border-border/30 sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex flex-wrap items-center justify-between gap-2 py-2 sm:h-14 sm:flex-nowrap sm:py-0">
-          <h1 className="shrink-0 whitespace-nowrap text-lg font-bold tracking-tight text-white flex items-center gap-2" >
-            Controle de Contas
-          </h1>
+          <BrandLogo href="/dashboard" size="sm" className="shrink-0" />
 
           {/* Month Navigation */}
           <div className="order-3 flex w-full items-center justify-center gap-1 overflow-x-auto pb-1 sm:order-none sm:w-auto sm:justify-start sm:overflow-visible sm:pb-0">
