@@ -17,3 +17,5 @@ services:
         value: "pedro123"
       - key: JWT_SECRET
         generateValue: true
+      - key: DATABASE_URL
+        value: "postgresql://neondb_owner:npg_Qmb9LFlX0KeN@ep-weathered-glade-aqb41qeu-pooler.c-8.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
