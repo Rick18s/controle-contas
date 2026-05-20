@@ -323,9 +323,17 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         const organization = await requireOrganizationAdmin(ctx);
         const existingUser = await db.getUserByUsername(input.username);
+        
         if (existingUser) {
-          throw new Error("Este usuário já existe. Em breve você poderá convidar usuários existentes.");
+          const existingMembership = await db.getOrganizationMembership(existingUser.id, organization.id);
+          if (existingMembership) {
+            throw new Error("Este usuário já tem acesso a este centro.");
+          }
+          await db.addUserToOrganization(existingUser.id, organization.id, input.role);
+          const newMembership = await db.getOrganizationMembership(existingUser.id, organization.id);
+          return sanitizeOrganizationMember({ ...existingUser, membershipId: newMembership!.id, membershipRole: newMembership!.role, organizationId: organization.id });
         }
+
         const created = await db.createPasswordUser({
           username: input.username,
           name: input.name,
