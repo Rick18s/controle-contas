@@ -9,15 +9,13 @@ export default function SummaryDashboard({ monthId }: { monthId: number }) {
   const analyticsQuery = trpc.months.getAnalytics.useQuery();
 
   const cards = cardsQuery.data || [];
-  const summaryCardsSource = cards.filter(card => card.name.toLowerCase().includes("escritório"));
-  const cardsForSummary = summaryCardsSource.length > 0 ? summaryCardsSource : cards;
   const income = incomeQuery.data || [];
   const balances = balancesQuery.data || [];
 
   // Calculate totals
   let totalExpenses = 0;
   let totalPaid = 0;
-  cardsForSummary.forEach(card => {
+  cards.forEach(card => {
     card.items.forEach(item => {
       totalExpenses += parseMoney(item.value);
       totalPaid += getPaidAmount(item);
@@ -29,6 +27,7 @@ export default function SummaryDashboard({ monthId }: { monthId: number }) {
   const carryover = currentMonthAnalytics?.previousCarryover || 0;
 
   const totalRemaining = Math.max(totalExpenses - totalPaid, 0);
+  const totalMonth = totalPaid + totalRemaining;
   const totalIncome = income.reduce((sum, e) => sum + parseMoney(e.value), 0);
   const totalReceivedIncome = income.filter(e => e.received === 1).reduce((sum, e) => sum + parseMoney(e.value), 0);
   const totalBankBalance = balances.reduce((sum, b) => sum + parseMoney(b.balance), 0);
@@ -38,10 +37,12 @@ export default function SummaryDashboard({ monthId }: { monthId: number }) {
 
   const summaryCards = [
     { label: "Saldo Anterior", value: formatBrl(carryover), color: carryover >= 0 ? "text-primary" : "text-destructive" },
+    { label: "Saldo Bancário", value: formatBrl(totalBankBalance), color: totalBankBalance >= 0 ? "text-primary" : "text-destructive" },
     { label: "Entradas Previstas", value: formatBrl(totalIncome), color: "text-primary" },
     { label: "Entradas Recebidas", value: formatBrl(totalReceivedIncome), color: "text-primary" },
-    { label: "Total Despesas", value: formatBrl(totalExpenses), color: "text-blue-100" },
-    { label: "Restante a Pagar", value: formatBrl(totalRemaining), color: "text-destructive" },
+    { label: "Pago no Mês", value: formatBrl(totalPaid), color: "text-green-400" },
+    { label: "Previsto a Pagar", value: formatBrl(totalRemaining), color: "text-blue-200" },
+    { label: "Total do Mês", value: formatBrl(totalMonth), color: "text-blue-100" },
     { label: "Fluxo de Caixa", value: formatBrl(cashFlow), color: cashFlow >= 0 ? "text-primary" : "text-destructive" },
   ];
 
@@ -70,7 +71,7 @@ export default function SummaryDashboard({ monthId }: { monthId: number }) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4 xl:grid-cols-8">
       {summaryCards.map((card, idx) => (
         <div
           key={idx}
