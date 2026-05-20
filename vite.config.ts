@@ -159,13 +159,13 @@ const plugins = [
   vitePluginManusDebugCollector(),
   VitePWA({
     registerType: "autoUpdate",
-    includeAssets: ["pwa-192x192.png", "pwa-512x512.png"],
+    includeAssets: ["favicon.svg", "pwa-192x192.png", "pwa-512x512.png"],
     manifest: {
       name: "Controle de Contas",
-      short_name: "Contas",
+      short_name: "Controle de Contas",
       description: "Gestão Financeira Simplificada",
-      theme_color: "#ffffff",
-      background_color: "#ffffff",
+      theme_color: "#09090b",
+      background_color: "#09090b",
       display: "standalone",
       icons: [
         {
