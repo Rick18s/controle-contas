@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/neon-http";
 import { neon } from "@neondatabase/serverless";
 import fs from "fs";
 import path from "path";
-import { InsertUser, PasswordResetToken, User, users, passwordResetTokens, organizations, organizationMembers, months, expenseCards, expenseItems, incomeEntries, bankBalances, goals } from "../drizzle/schema";
+import { InsertUser, PasswordResetToken, User, users, passwordResetTokens, organizations, organizationMembers, months, expenseCards, expenseItems, incomeEntries, bankBalances, bankTransactions, goals } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -349,6 +349,20 @@ type MemoryItem = {
 };
 type MemoryIncome = { id: number; monthId: number; name: string; value: string; received: number; receivedAccountName?: string | null; sortOrder: number | null };
 type MemoryBalance = { id: number; monthId: number; accountName: string; balance: string; sortOrder: number | null };
+type MemoryBankTransaction = {
+  id: number;
+  monthId: number;
+  userId?: number | null;
+  accountName: string;
+  description: string;
+  movementType: "income" | "expense" | "adjustment";
+  amount: string;
+  balanceAfter: string;
+  sourceType?: string | null;
+  sourceId?: number | null;
+  fingerprint?: string | null;
+  createdAt: Date;
+};
 type MemoryGoal = { id: number; organizationId: number; name: string; term: "short" | "medium" | "long"; targetValue: string; savedValue: string; sortOrder: number | null };
 type MemoryPasswordResetToken = PasswordResetToken;
 
@@ -358,6 +372,7 @@ const memoryCards: MemoryCard[] = [];
 const memoryItems: MemoryItem[] = [];
 const memoryIncome: MemoryIncome[] = [];
 const memoryBalances: MemoryBalance[] = [];
+const memoryBankTransactions: MemoryBankTransaction[] = [];
 const memoryUsers: User[] = [];
 const memoryPasswordResetTokens: MemoryPasswordResetToken[] = [];
 const memoryOrganizations: MemoryOrganization[] = [];
@@ -375,6 +390,7 @@ type MemorySnapshot = {
   items?: MemoryItem[];
   income?: MemoryIncome[];
   balances?: MemoryBalance[];
+  bankTransactions?: MemoryBankTransaction[];
   goals?: MemoryGoal[];
 };
 
@@ -421,6 +437,10 @@ function ensureMemoryLoaded() {
     replaceMemory(memoryItems, snapshot.items);
     replaceMemory(memoryIncome, snapshot.income);
     replaceMemory(memoryBalances, snapshot.balances);
+    replaceMemory(memoryBankTransactions, (snapshot.bankTransactions ?? []).map(transaction => ({
+      ...transaction,
+      createdAt: toDate(transaction.createdAt),
+    })));
     replaceMemory(memoryGoals, snapshot.goals);
   } catch (error) {
     console.error("[Database] Failed to load local data snapshot:", error);
@@ -441,6 +461,7 @@ function persistMemoryData() {
     items: memoryItems,
     income: memoryIncome,
     balances: memoryBalances,
+    bankTransactions: memoryBankTransactions,
     goals: memoryGoals,
   };
   fs.mkdirSync(path.dirname(memoryDataFile), { recursive: true });
@@ -701,7 +722,7 @@ export async function deleteMonth(monthId: number) {
       const itemIndexes = memoryItems.map((item, index) => item.cardId === cardId ? index : -1).filter(index => index >= 0).reverse();
       itemIndexes.forEach(index => memoryItems.splice(index, 1));
     }
-    [memoryCards, memoryIncome, memoryBalances, memoryMonths].forEach(collection => {
+    [memoryCards, memoryIncome, memoryBalances, memoryBankTransactions, memoryMonths].forEach(collection => {
       const indexes = collection.map((entry, index) => "monthId" in entry ? entry.monthId === monthId ? index : -1 : entry.id === monthId ? index : -1).filter(index => index >= 0).reverse();
       indexes.forEach(index => collection.splice(index, 1));
     });
@@ -716,6 +737,7 @@ export async function deleteMonth(monthId: number) {
   await db.delete(expenseCards).where(eq(expenseCards.monthId, monthId));
   await db.delete(incomeEntries).where(eq(incomeEntries.monthId, monthId));
   await db.delete(bankBalances).where(eq(bankBalances.monthId, monthId));
+  await db.delete(bankTransactions).where(eq(bankTransactions.monthId, monthId));
   await db.delete(months).where(eq(months.id, monthId));
 }
 
@@ -1006,6 +1028,66 @@ export async function deleteBalance(balanceId: number) {
     return;
   }
   await db.delete(bankBalances).where(eq(bankBalances.id, balanceId));
+}
+
+// ============ BANK TRANSACTIONS ============
+
+export async function listBankTransactions(monthId: number) {
+  const db = await getDb();
+  if (!db) {
+    return memoryBankTransactions
+      .filter(transaction => transaction.monthId === monthId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+  return db.select().from(bankTransactions).where(eq(bankTransactions.monthId, monthId)).orderBy(asc(bankTransactions.id));
+}
+
+export async function getBankTransactionByFingerprint(monthId: number, fingerprint: string) {
+  const db = await getDb();
+  if (!db) {
+    return memoryBankTransactions.find(transaction => transaction.monthId === monthId && transaction.fingerprint === fingerprint);
+  }
+  const result = await db.select().from(bankTransactions)
+    .where(and(eq(bankTransactions.monthId, monthId), eq(bankTransactions.fingerprint, fingerprint)))
+    .limit(1);
+  return result[0];
+}
+
+export async function createBankTransaction(data: {
+  monthId: number;
+  userId?: number | null;
+  accountName: string;
+  description: string;
+  movementType: "income" | "expense" | "adjustment";
+  amount: string;
+  balanceAfter: string;
+  sourceType?: string | null;
+  sourceId?: number | null;
+  fingerprint?: string | null;
+}) {
+  const db = await getDb();
+  const values = {
+    monthId: data.monthId,
+    userId: data.userId ?? null,
+    accountName: data.accountName.trim(),
+    description: data.description.trim() || "Movimentação",
+    movementType: data.movementType,
+    amount: data.amount,
+    balanceAfter: data.balanceAfter,
+    sourceType: data.sourceType ?? null,
+    sourceId: data.sourceId ?? null,
+    fingerprint: data.fingerprint ?? null,
+  };
+
+  if (!db) {
+    const transaction = { id: memoryNextId++, ...values, createdAt: new Date() };
+    memoryBankTransactions.push(transaction);
+    persistMemoryData();
+    return { id: transaction.id };
+  }
+
+  const result = await db.insert(bankTransactions).values(values).returning({ id: bankTransactions.id });
+  return { id: result[0].id };
 }
 
 // ============ GOALS ============

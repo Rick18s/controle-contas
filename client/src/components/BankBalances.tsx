@@ -7,8 +7,16 @@ import { toast } from "sonner";
 import { formatBrl, parseMoney } from "@/lib/money";
 
 export default function BankBalances({ monthId }: { monthId: number }) {
+  const utils = trpc.useUtils();
   const balancesQuery = trpc.balances.list.useQuery({ monthId });
-  const updateBalance = trpc.balances.update.useMutation({ onSuccess: () => balancesQuery.refetch() });
+  const updateBalance = trpc.balances.update.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        balancesQuery.refetch(),
+        utils.balances.transactions.invalidate({ monthId }),
+      ]);
+    },
+  });
   const deleteBalance = trpc.balances.delete.useMutation();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [newAccountName, setNewAccountName] = useState("");

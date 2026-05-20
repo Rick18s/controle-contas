@@ -26,6 +26,7 @@ import QuickAddDialog from "@/components/QuickAddDialog";
 import OfxImportPanel from "@/components/OfxImportPanel";
 import OnboardingTutorial from "@/components/OnboardingTutorial";
 import BrandLogo from "@/components/BrandLogo";
+import BankStatementPanel from "@/components/BankStatementPanel";
 import { Sparkles } from "lucide-react";
 
 export default function Dashboard() {
@@ -436,6 +437,7 @@ export default function Dashboard() {
                 <TabsTrigger value="goals" className="text-xs sm:text-sm py-2 px-3">Metas</TabsTrigger>
                 <TabsTrigger value="analytics" className="text-xs sm:text-sm py-2 px-3">Análises</TabsTrigger>
                 <TabsTrigger value="balances" className="text-xs sm:text-sm py-2 px-3">Saldos</TabsTrigger>
+                <TabsTrigger value="statement" className="text-xs sm:text-sm py-2 px-3">Extrato</TabsTrigger>
                 {canManageOrganization && (
                   <TabsTrigger value="admin" className="text-xs sm:text-sm py-2 px-3">Admin</TabsTrigger>
                 )}
@@ -479,6 +481,10 @@ export default function Dashboard() {
                 <BankBalances monthId={selectedMonthId} />
                 <CurrencyCalculator />
               </div>
+            </TabsContent>
+
+            <TabsContent value="statement" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
+              <BankStatementPanel monthId={selectedMonthId} />
             </TabsContent>
 
             {canManageOrganization && (

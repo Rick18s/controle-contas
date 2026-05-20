@@ -190,6 +190,7 @@ export default function ExpenseCard({ card, onRefresh }: { card: CardData; onRef
             onBalancesRefresh={() => {
               void balancesQuery.refetch();
               void utils.balances.list.invalidate({ monthId: card.monthId });
+              void utils.balances.transactions.invalidate({ monthId: card.monthId });
               void utils.months.getAnalytics.invalidate();
             }}
             onDelete={() => { void handleDeleteItem(item); }}

@@ -181,13 +181,41 @@ function hashSecureToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
-async function adjustBankBalance(monthId: number, accountName: string | null | undefined, delta: number) {
+function makeFingerprint(parts: Array<string | number | null | undefined>) {
+  return crypto.createHash("sha256").update(parts.map(part => String(part ?? "")).join("|")).digest("hex");
+}
+
+async function adjustBankBalance(
+  monthId: number,
+  accountName: string | null | undefined,
+  delta: number,
+  meta?: {
+    userId?: number | null;
+    description?: string;
+    sourceType?: string;
+    sourceId?: number;
+    fingerprint?: string | null;
+  }
+) {
   const normalizedAccountName = accountName?.trim();
   if (!normalizedAccountName || !Number.isFinite(delta) || delta === 0) return;
   const balances = await db.getBalancesByMonth(monthId);
   const existing = balances.find(balance => balance.accountName === normalizedAccountName);
   const current = parseMoneyValue(existing?.balance);
-  await db.upsertBalance(monthId, normalizedAccountName, formatMoneyValue(current + delta), existing?.sortOrder ?? balances.length);
+  const nextBalance = current + delta;
+  await db.upsertBalance(monthId, normalizedAccountName, formatMoneyValue(nextBalance), existing?.sortOrder ?? balances.length);
+  await db.createBankTransaction({
+    monthId,
+    userId: meta?.userId ?? null,
+    accountName: normalizedAccountName,
+    description: meta?.description ?? (delta >= 0 ? "Entrada registrada" : "Pagamento registrado"),
+    movementType: delta >= 0 ? "income" : "expense",
+    amount: formatMoneyValue(delta),
+    balanceAfter: formatMoneyValue(nextBalance),
+    sourceType: meta?.sourceType ?? null,
+    sourceId: meta?.sourceId ?? null,
+    fingerprint: meta?.fingerprint ?? null,
+  });
 }
 
 export const appRouter = router({
@@ -645,10 +673,20 @@ export const appRouter = router({
           if (card) {
             const previousPaidValue = current.paidAccountName ? parseMoneyValue(current.paidValue) : 0;
             if (previousPaidValue > 0 && current.paidAccountName) {
-              await adjustBankBalance(card.monthId, current.paidAccountName, previousPaidValue);
+              await adjustBankBalance(card.monthId, current.paidAccountName, previousPaidValue, {
+                userId: ctx.user.id,
+                description: `Pagamento desfeito: ${current.name}`,
+                sourceType: "expense_item",
+                sourceId: current.id,
+              });
             }
             if (nextPaidValue > 0 && nextAccount) {
-              await adjustBankBalance(card.monthId, nextAccount, -nextPaidValue);
+              await adjustBankBalance(card.monthId, nextAccount, -nextPaidValue, {
+                userId: ctx.user.id,
+                description: `Pagamento: ${current.name}`,
+                sourceType: "expense_item",
+                sourceId: current.id,
+              });
             }
           }
 
@@ -666,7 +704,12 @@ export const appRouter = router({
         const item = await requireItemInActiveOrganization(ctx, input.id);
         if (item.paidAccountName && parseMoneyValue(item.paidValue) > 0) {
           const card = await db.getCardById(item.cardId);
-          if (card) await adjustBankBalance(card.monthId, item.paidAccountName, parseMoneyValue(item.paidValue));
+          if (card) await adjustBankBalance(card.monthId, item.paidAccountName, parseMoneyValue(item.paidValue), {
+            userId: ctx.user.id,
+            description: `Despesa removida: ${item.name}`,
+            sourceType: "expense_item",
+            sourceId: item.id,
+          });
         }
         await db.deleteItem(input.id);
         return { success: true };
@@ -709,7 +752,12 @@ export const appRouter = router({
         const { id, ...data } = input;
         if (data.value !== undefined && current.received === 1 && current.receivedAccountName) {
           const delta = parseMoneyValue(data.value) - parseMoneyValue(current.value);
-          await adjustBankBalance(current.monthId, current.receivedAccountName, delta);
+          await adjustBankBalance(current.monthId, current.receivedAccountName, delta, {
+            userId: ctx.user.id,
+            description: `Ajuste de entrada: ${current.name}`,
+            sourceType: "income_entry",
+            sourceId: current.id,
+          });
         }
         await db.updateIncome(id, data);
         return { success: true };
@@ -733,11 +781,21 @@ export const appRouter = router({
         }
 
         if (entry.received === 1 && previousAccount && (nextReceived === 0 || previousAccount !== nextAccount)) {
-          await adjustBankBalance(entry.monthId, previousAccount, -value);
+          await adjustBankBalance(entry.monthId, previousAccount, -value, {
+            userId: ctx.user.id,
+            description: `Recebimento desfeito: ${entry.name}`,
+            sourceType: "income_entry",
+            sourceId: entry.id,
+          });
         }
 
         if (nextReceived === 1 && (entry.received !== 1 || previousAccount !== nextAccount)) {
-          await adjustBankBalance(entry.monthId, nextAccount, value);
+          await adjustBankBalance(entry.monthId, nextAccount, value, {
+            userId: ctx.user.id,
+            description: `Recebimento: ${entry.name}`,
+            sourceType: "income_entry",
+            sourceId: entry.id,
+          });
         }
 
         await db.updateIncome(input.id, {
@@ -752,7 +810,12 @@ export const appRouter = router({
         await requireCanEdit(ctx);
         const entry = await requireIncomeInActiveOrganization(ctx, input.id);
         if (entry.received === 1 && entry.receivedAccountName) {
-          await adjustBankBalance(entry.monthId, entry.receivedAccountName, -parseMoneyValue(entry.value));
+          await adjustBankBalance(entry.monthId, entry.receivedAccountName, -parseMoneyValue(entry.value), {
+            userId: ctx.user.id,
+            description: `Entrada removida: ${entry.name}`,
+            sourceType: "income_entry",
+            sourceId: entry.id,
+          });
         }
         await db.deleteIncome(input.id);
         return { success: true };
@@ -776,7 +839,26 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         await requireCanEdit(ctx);
         await requireMonthInActiveOrganization(ctx, input.monthId);
+        const accountName = input.accountName.trim();
+        const balances = await db.getBalancesByMonth(input.monthId);
+        const current = balances.find(balance => balance.accountName === accountName);
+        const previousValue = parseMoneyValue(current?.balance);
+        const nextValue = parseMoneyValue(input.balance);
         await db.upsertBalance(input.monthId, input.accountName, input.balance);
+        const delta = nextValue - previousValue;
+        if (Number.isFinite(delta) && delta !== 0) {
+          await db.createBankTransaction({
+            monthId: input.monthId,
+            userId: ctx.user.id,
+            accountName,
+            description: current ? `Ajuste manual de saldo: ${accountName}` : `Conta bancária criada: ${accountName}`,
+            movementType: "adjustment",
+            amount: formatMoneyValue(delta),
+            balanceAfter: formatMoneyValue(nextValue),
+            sourceType: "bank_balance",
+            sourceId: current?.id ?? null,
+          });
+        }
         return { success: true };
       }),
     delete: protectedProcedure
@@ -788,6 +870,97 @@ export const appRouter = router({
         await requireMonthInActiveOrganization(ctx, balance.monthId);
         await db.deleteBalance(input.id);
         return { success: true };
+      }),
+    transactions: protectedProcedure
+      .input(z.object({ monthId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        await requireMonthInActiveOrganization(ctx, input.monthId);
+        return db.listBankTransactions(input.monthId);
+      }),
+  }),
+
+  imports: router({
+    saveOfxTransactions: protectedProcedure
+      .input(z.object({
+        monthId: z.number(),
+        accountName: z.string().min(1),
+        transactions: z.array(z.object({
+          date: z.string().optional().default(""),
+          description: z.string().min(1),
+          value: z.number().positive(),
+          type: z.enum(["income", "expense"]),
+          rawValue: z.number(),
+          fitId: z.string().optional().default(""),
+        })).min(1),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await requireCanEdit(ctx);
+        await requireMonthInActiveOrganization(ctx, input.monthId);
+
+        const accountName = input.accountName.trim();
+        if (!accountName) throw new Error("Informe a conta bancária do extrato");
+
+        const cards = await db.getCardsByMonth(input.monthId);
+        let importCardId = cards.find(card => normalizeText(card.name) === "importado ofx")?.id ?? null;
+        let imported = 0;
+        let skipped = 0;
+
+        for (const transaction of input.transactions) {
+          const fingerprint = makeFingerprint([
+            input.monthId,
+            accountName,
+            transaction.fitId || transaction.date,
+            transaction.description,
+            transaction.rawValue,
+          ]);
+
+          const duplicate = await db.getBankTransactionByFingerprint(input.monthId, fingerprint);
+          if (duplicate) {
+            skipped += 1;
+            continue;
+          }
+
+          const amount = Number(transaction.value);
+          if (transaction.type === "income") {
+            const created = await db.createIncome(input.monthId, {
+              name: transaction.description,
+              value: formatMoneyValue(amount),
+              received: 1,
+              receivedAccountName: accountName,
+            });
+            await adjustBankBalance(input.monthId, accountName, amount, {
+              userId: ctx.user.id,
+              description: `OFX entrada: ${transaction.description}`,
+              sourceType: "ofx_income",
+              sourceId: created.id,
+              fingerprint,
+            });
+          } else {
+            if (!importCardId) {
+              const createdCard = await db.createCard(input.monthId, "Importado OFX", "📥");
+              importCardId = createdCard.id;
+            }
+            const created = await db.createItem(importCardId, {
+              name: transaction.description,
+              dueDate: transaction.date,
+              value: formatMoneyValue(amount),
+              paidValue: formatMoneyValue(amount),
+              paidAccountName: accountName,
+              status: "pago",
+            });
+            await adjustBankBalance(input.monthId, accountName, -amount, {
+              userId: ctx.user.id,
+              description: `OFX saída: ${transaction.description}`,
+              sourceType: "ofx_expense",
+              sourceId: created.id,
+              fingerprint,
+            });
+          }
+
+          imported += 1;
+        }
+
+        return { imported, skipped };
       }),
   }),
 
@@ -916,7 +1089,11 @@ Sua tarefa:
           cardId = newCard.id;
         }
 
-        await adjustBankBalance(input.monthId, input.accountName, -result.value);
+        await adjustBankBalance(input.monthId, input.accountName, -result.value, {
+          userId: ctx.user.id,
+          description: `Lançamento rápido: ${result.name}`,
+          sourceType: "quick_add",
+        });
         const created = await db.createItem(cardId, {
           name: result.name,
           value: result.value.toFixed(2),

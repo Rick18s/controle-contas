@@ -4,6 +4,7 @@ export const userRoleEnum = pgEnum("user_role", ["user", "admin"]);
 export const memberRoleEnum = pgEnum("member_role", ["admin", "finance", "viewer"]);
 export const statusEnum = pgEnum("status", ["pago", "parcial", "pendente"]);
 export const termEnum = pgEnum("term", ["short", "medium", "long"]);
+export const bankMovementTypeEnum = pgEnum("bank_movement_type", ["income", "expense", "adjustment"]);
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -113,6 +114,23 @@ export const bankBalances = pgTable("bank_balances", {
 });
 
 export type BankBalance = typeof bankBalances.$inferSelect;
+
+export const bankTransactions = pgTable("bank_transactions", {
+  id: serial("id").primaryKey(),
+  monthId: integer("monthId").notNull(),
+  userId: integer("userId"),
+  accountName: varchar("accountName", { length: 100 }).notNull(),
+  description: varchar("description", { length: 240 }).notNull(),
+  movementType: bankMovementTypeEnum("movementType").notNull(),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  balanceAfter: decimal("balanceAfter", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  sourceType: varchar("sourceType", { length: 60 }),
+  sourceId: integer("sourceId"),
+  fingerprint: varchar("fingerprint", { length: 128 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type BankTransaction = typeof bankTransactions.$inferSelect;
 
 // Goals and Investments
 export const goals = pgTable("goals", {

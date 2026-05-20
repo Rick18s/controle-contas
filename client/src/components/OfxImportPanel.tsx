@@ -3,7 +3,6 @@ import { Upload, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
-import { inferCardIcon } from "@/lib/cardIcons";
 
 type OfxTransaction = {
   date: string;
@@ -22,10 +21,7 @@ export default function OfxImportPanel({ monthId }: { monthId: number }) {
   const [isSaving, setIsSaving] = useState(false);
   const utils = trpc.useUtils();
 
-  const cardsQuery = trpc.cards.list.useQuery({ monthId });
-  const createCard = trpc.cards.create.useMutation();
-  const createItem = trpc.items.create.useMutation();
-  const createIncome = trpc.income.create.useMutation();
+  const saveOfx = trpc.imports.saveOfxTransactions.useMutation();
 
   const selectedTransactions = useMemo(
     () => transactions.filter((_transaction, index) => selected[index]),
@@ -60,56 +56,34 @@ export default function OfxImportPanel({ monthId }: { monthId: number }) {
     }
   };
 
-  const getOrCreateImportCard = async () => {
-    const existing = cardsQuery.data?.find(card => card.name.toLowerCase() === "importado ofx");
-    if (existing) return existing.id;
-    const created = await createCard.mutateAsync({ monthId, name: "Importado OFX", icon: inferCardIcon("Importado OFX") });
-    await cardsQuery.refetch();
-    return created.id;
-  };
-
   const handleSave = async () => {
     if (selectedTransactions.length === 0) {
       toast.error("Selecione pelo menos uma transação");
       return;
     }
+    if (!accountName.trim()) {
+      toast.error("Informe a conta bancária do extrato");
+      return;
+    }
 
     setIsSaving(true);
     try {
-      const cardId = selectedTransactions.some(transaction => transaction.type === "expense")
-        ? await getOrCreateImportCard()
-        : null;
-
-      for (const transaction of selectedTransactions) {
-        const value = transaction.value.toFixed(2);
-        if (transaction.type === "income") {
-          await createIncome.mutateAsync({
-            monthId,
-            name: transaction.description,
-            value,
-            received: 1,
-            receivedAccountName: accountName.trim() || null,
-          });
-        } else if (cardId) {
-          await createItem.mutateAsync({
-            cardId,
-            name: transaction.description,
-            dueDate: transaction.date,
-            value,
-            paidValue: value,
-            paidAccountName: accountName.trim() || null,
-            status: "pago",
-          });
-        }
-      }
+      const result = await saveOfx.mutateAsync({
+        monthId,
+        accountName: accountName.trim(),
+        transactions: selectedTransactions,
+      });
 
       await Promise.all([
         utils.cards.list.invalidate({ monthId }),
         utils.income.list.invalidate({ monthId }),
+        utils.balances.list.invalidate({ monthId }),
+        utils.balances.transactions.invalidate({ monthId }),
+        utils.months.getAnalytics.invalidate(),
       ]);
       setTransactions([]);
       setSelected({});
-      toast.success("Transações OFX salvas no mês");
+      toast.success(`OFX salvo: ${result.imported} novas, ${result.skipped} duplicadas ignoradas`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível salvar as transações");
     } finally {
@@ -144,6 +118,9 @@ export default function OfxImportPanel({ monthId }: { monthId: number }) {
               placeholder="Ex: Banco Inter"
               className="w-full rounded border border-border bg-background/50 px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-cyan-400"
             />
+            <p className="text-[11px] text-muted-foreground">
+              As entradas somam nesse banco e as saídas descontam dele. Transações repetidas do mesmo OFX serão ignoradas.
+            </p>
           </div>
 
           <div className="overflow-x-auto rounded-md border border-border">
@@ -185,7 +162,7 @@ export default function OfxImportPanel({ monthId }: { monthId: number }) {
           </div>
 
           <div className="flex justify-end">
-            <Button onClick={handleSave} disabled={isSaving} className="gap-2">
+            <Button onClick={handleSave} disabled={isSaving || !accountName.trim()} className="gap-2">
               {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
               Aprovar e salvar selecionadas
             </Button>

@@ -6,19 +6,27 @@ import { toast } from "sonner";
 import { formatBrl, parseMoney } from "@/lib/money";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function IncomePanel({ monthId }: { monthId: number }) {
   const utils = trpc.useUtils();
   const incomeQuery = trpc.income.list.useQuery({ monthId });
   const balancesQuery = trpc.balances.list.useQuery({ monthId });
   const createIncome = trpc.income.create.useMutation();
-  const updateIncome = trpc.income.update.useMutation({ onSuccess: () => incomeQuery.refetch() });
+  const updateIncome = trpc.income.update.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        incomeQuery.refetch(),
+        balancesQuery.refetch(),
+        utils.balances.transactions.invalidate({ monthId }),
+      ]);
+    },
+  });
   const setIncomeReceived = trpc.income.setReceived.useMutation({
     onSuccess: async () => {
       await Promise.all([
         incomeQuery.refetch(),
         balancesQuery.refetch(),
+        utils.balances.transactions.invalidate({ monthId }),
         utils.months.getAnalytics.invalidate(),
       ]);
     },
@@ -55,6 +63,8 @@ export default function IncomePanel({ monthId }: { monthId: number }) {
   const handleDeleteIncome = async (entry: { id: number; name: string; value: string; received: number }) => {
     await deleteIncome.mutateAsync({ id: entry.id });
     incomeQuery.refetch();
+    void balancesQuery.refetch();
+    void utils.balances.transactions.invalidate({ monthId });
     toast.success("Entrada removida", {
       duration: 10000,
       action: {
@@ -65,12 +75,8 @@ export default function IncomePanel({ monthId }: { monthId: number }) {
   };
 
   const openReceiveDialog = (entry: { id: number; name: string; value: string }) => {
-    if (balances.length === 0) {
-      toast.error("Cadastre uma conta em Saldos antes de marcar como recebido");
-      return;
-    }
     setReceiptTarget(entry);
-    setReceiptAccountName(balances[0].accountName);
+    setReceiptAccountName(balances[0]?.accountName || "");
   };
 
   const confirmReceived = async () => {
@@ -134,18 +140,21 @@ export default function IncomePanel({ monthId }: { monthId: number }) {
             <p className="text-sm text-muted-foreground">
               Escolha em qual banco entrou {receiptTarget ? formatBrl(parseMoney(receiptTarget.value)) : ""}.
             </p>
-            <Select value={receiptAccountName} onValueChange={setReceiptAccountName}>
-              <SelectTrigger className="bg-background border-border">
-                <SelectValue placeholder="Escolha a conta" />
-              </SelectTrigger>
-              <SelectContent>
-                {balances.map(balance => (
-                  <SelectItem key={balance.id} value={balance.accountName}>{balance.accountName}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <input
+              className="w-full rounded border border-border bg-background/50 px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-cyan-400"
+              value={receiptAccountName}
+              onChange={(event) => setReceiptAccountName(event.target.value)}
+              placeholder="Ex: Inter, C6, Caixa"
+              list="receipt-accounts"
+              autoFocus
+            />
+            <datalist id="receipt-accounts">
+              {balances.map(balance => (
+                <option key={balance.id} value={balance.accountName} />
+              ))}
+            </datalist>
             <p className="text-xs text-muted-foreground">
-              O saldo do banco será atualizado automaticamente. Se você desfizer, o valor será removido da mesma conta.
+              O saldo do banco será atualizado automaticamente. Se a conta ainda não existir, ela será criada.
             </p>
           </div>
           <DialogFooter className="gap-2">
