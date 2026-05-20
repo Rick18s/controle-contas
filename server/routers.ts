@@ -748,7 +748,6 @@ export const appRouter = router({
         await requireCanEdit(ctx);
         await requireMonthInActiveOrganization(ctx, input.monthId);
         const cards = await db.getCardsByMonth(input.monthId);
-        const balances = await db.getBalancesByMonth(input.monthId);
         let result = parseQuickAddText(input.text, cards);
         
         if (!result) {
@@ -798,17 +797,12 @@ Sua tarefa:
           throw new Error("Informe um nome e valor. Exemplo: Pastel 40 reais");
         }
 
-        if (balances.length > 0 && !input.accountName?.trim()) {
-          throw new Error("Escolha a conta bancária movimentada");
-        }
-
         if (result.transactionType === "income") {
-          await adjustBankBalance(input.monthId, input.accountName, result.value);
           const created = await db.createIncome(input.monthId, {
             name: result.name,
             value: result.value.toFixed(2),
-            received: 1,
-            receivedAccountName: input.accountName?.trim() || null,
+            received: 0,
+            receivedAccountName: null,
           });
           return { type: "income", id: created.id, name: result.name, value: result.value };
         }
