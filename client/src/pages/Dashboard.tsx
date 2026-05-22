@@ -138,6 +138,7 @@ export default function Dashboard() {
         monthId: restoredMonth.id,
         name: entry.name,
         value: entry.value,
+        receivedValue: entry.receivedValue,
         received: entry.received,
         receivedAccountName: entry.receivedAccountName,
       });
@@ -279,7 +280,11 @@ export default function Dashboard() {
     });
 
     (exportIncomeQuery.data || []).forEach(entry => {
-      rows.push(["Entrada", "Entradas", entry.name, "", entry.value, entry.received === 1 ? entry.value : "0.00", entry.received === 1 ? "recebido" : "pendente"]);
+      const receivedValue = Number.parseFloat(entry.receivedValue || "0.00") > 0
+        ? entry.receivedValue
+        : entry.received === 1 ? entry.value : "0.00";
+      const remainingValue = Math.max(Number.parseFloat(entry.value || "0") - Number.parseFloat(receivedValue || "0"), 0);
+      rows.push(["Entrada", "Entradas", entry.name, "", entry.value, receivedValue, remainingValue > 0 && Number.parseFloat(receivedValue || "0") > 0 ? "parcial" : entry.received === 1 ? "recebido" : "pendente"]);
     });
 
     (exportBalancesQuery.data || []).forEach(balance => {

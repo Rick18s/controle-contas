@@ -97,6 +97,7 @@ export const incomeEntries = pgTable("income_entries", {
   monthId: integer("monthId").notNull(),
   name: varchar("name", { length: 200 }).notNull(),
   value: decimal("value", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  receivedValue: decimal("receivedValue", { precision: 12, scale: 2 }).default("0.00").notNull(),
   received: smallint("received").default(0).notNull(), // 0=pending, 1=received
   receivedAccountName: varchar("receivedAccountName", { length: 100 }),
   sortOrder: integer("sortOrder").default(0),

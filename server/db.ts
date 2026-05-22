@@ -8,6 +8,13 @@ import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
+function normalizeIncomeEntry<T extends { value: string; received: number; receivedValue?: string | null }>(entry: T): T & { receivedValue: string } {
+  return {
+    ...entry,
+    receivedValue: entry.receivedValue ?? (entry.received === 1 ? entry.value : "0.00"),
+  };
+}
+
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
@@ -347,7 +354,7 @@ type MemoryItem = {
   status: "pago" | "parcial" | "pendente";
   sortOrder: number | null;
 };
-type MemoryIncome = { id: number; monthId: number; name: string; value: string; received: number; receivedAccountName?: string | null; sortOrder: number | null };
+type MemoryIncome = { id: number; monthId: number; name: string; value: string; receivedValue: string; received: number; receivedAccountName?: string | null; sortOrder: number | null };
 type MemoryBalance = { id: number; monthId: number; accountName: string; balance: string; sortOrder: number | null };
 type MemoryBankTransaction = {
   id: number;
@@ -435,7 +442,10 @@ function ensureMemoryLoaded() {
     replaceMemory(memoryMonths, (snapshot.months ?? []).map(month => ({ ...month, createdAt: month.createdAt ? toDate(month.createdAt) : undefined })));
     replaceMemory(memoryCards, snapshot.cards);
     replaceMemory(memoryItems, snapshot.items);
-    replaceMemory(memoryIncome, snapshot.income);
+    replaceMemory(memoryIncome, (snapshot.income ?? []).map(entry => ({
+      ...entry,
+      receivedValue: entry.received === 1 ? entry.value : "0.00",
+    })));
     replaceMemory(memoryBalances, snapshot.balances);
     replaceMemory(memoryBankTransactions, (snapshot.bankTransactions ?? []).map(transaction => ({
       ...transaction,
@@ -674,6 +684,7 @@ function ensureMemorySeed(userId: number, organizationId: number) {
       monthId: month.id,
       name: entry.name,
       value: entry.value,
+      receivedValue: entry.received === 1 ? entry.value : "0.00",
       received: entry.received ?? 0,
       sortOrder,
     });
@@ -919,24 +930,28 @@ export async function deleteItem(itemId: number) {
 export async function getIncomeByMonth(monthId: number) {
   const db = await getDb();
   if (!db) return memoryIncome.filter(entry => entry.monthId === monthId).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-  return db.select().from(incomeEntries).where(eq(incomeEntries.monthId, monthId)).orderBy(asc(incomeEntries.sortOrder));
+  const rows = await db.select().from(incomeEntries).where(eq(incomeEntries.monthId, monthId)).orderBy(asc(incomeEntries.sortOrder));
+  return rows.map(normalizeIncomeEntry);
 }
 
 export async function getIncomeById(entryId: number) {
   const db = await getDb();
   if (!db) return memoryIncome.find(entry => entry.id === entryId);
   const result = await db.select().from(incomeEntries).where(eq(incomeEntries.id, entryId)).limit(1);
-  return result[0];
+  return result[0] ? normalizeIncomeEntry(result[0]) : undefined;
 }
 
-export async function createIncome(monthId: number, data: { name: string; value?: string; received?: number; receivedAccountName?: string | null }) {
+export async function createIncome(monthId: number, data: { name: string; value?: string; receivedValue?: string; received?: number; receivedAccountName?: string | null }) {
+  const value = data.value || "0.00";
+  const receivedValue = data.receivedValue ?? (data.received === 1 ? value : "0.00");
   const db = await getDb();
   if (!db) {
     const entry = {
       id: memoryNextId++,
       monthId,
       name: data.name,
-      value: data.value || "0.00",
+      value,
+      receivedValue,
       received: data.received || 0,
       receivedAccountName: data.receivedAccountName ?? null,
       sortOrder: memoryIncome.filter(existing => existing.monthId === monthId).length,
@@ -948,14 +963,15 @@ export async function createIncome(monthId: number, data: { name: string; value?
   const result = await db.insert(incomeEntries).values({
     monthId,
     name: data.name,
-    value: data.value || "0.00",
+    value,
+    receivedValue,
     received: data.received || 0,
     receivedAccountName: data.receivedAccountName ?? null,
   }).returning({ id: incomeEntries.id });
   return { id: result[0].id };
 }
 
-export async function updateIncome(entryId: number, data: { name?: string; value?: string; received?: number; receivedAccountName?: string | null }) {
+export async function updateIncome(entryId: number, data: { name?: string; value?: string; receivedValue?: string; received?: number; receivedAccountName?: string | null }) {
   const db = await getDb();
   if (!db) {
     const entry = memoryIncome.find(existing => existing.id === entryId);
@@ -1447,6 +1463,7 @@ export async function copyMonthData(userId: number, sourceMonthId: number, optio
       const targetEntry = await createIncome(targetMonth.id, {
         name: sourceEntry.name,
         value: sourceEntry.value,
+        receivedValue: resetPaymentStatus ? "0.00" : sourceEntry.receivedValue,
         received: resetPaymentStatus ? 0 : sourceEntry.received,
         receivedAccountName: resetPaymentStatus ? null : sourceEntry.receivedAccountName,
       });

@@ -172,4 +172,48 @@ describe("finance - income router input validation", () => {
       caller.income.create({ name: "Test" })
     ).rejects.toThrow();
   });
+
+  it("registers partial receipts and updates the bank balance only by the received amount", async () => {
+    const user = await db.createPasswordUser({
+      username: `partial-income-user-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      name: "Partial Income User",
+      passwordHash: "test-hash",
+      role: "user",
+    });
+    const [organization] = await db.getOrganizationsForUser(user.id);
+    const ctx: TrpcContext = {
+      user,
+      activeOrganizationId: organization!.id,
+      req: { protocol: "https", headers: {} } as TrpcContext["req"],
+      res: { clearCookie: () => {} } as TrpcContext["res"],
+    };
+    const caller = appRouter.createCaller(ctx);
+    const month = await caller.months.create({ label: "2099-05" });
+    await caller.balances.update({ monthId: month.id, accountName: "Banco Teste", balance: "0.00" });
+    const income = await caller.income.create({ monthId: month.id, name: "Cliente", value: "1000.00", received: 0 });
+
+    await caller.income.registerReceipt({ id: income.id, amount: "300.00", accountName: "Banco Teste" });
+    let entries = await caller.income.list({ monthId: month.id });
+    let entry = entries.find(existing => existing.id === income.id);
+    expect(entry?.received).toBe(0);
+    expect(entry?.receivedValue).toBe("300.00");
+    let balances = await caller.balances.list({ monthId: month.id });
+    expect(balances.find(balance => balance.accountName === "Banco Teste")?.balance).toBe("300.00");
+
+    await caller.income.registerReceipt({ id: income.id, amount: "700.00", accountName: "Banco Teste" });
+    entries = await caller.income.list({ monthId: month.id });
+    entry = entries.find(existing => existing.id === income.id);
+    expect(entry?.received).toBe(1);
+    expect(entry?.receivedValue).toBe("1000.00");
+    balances = await caller.balances.list({ monthId: month.id });
+    expect(balances.find(balance => balance.accountName === "Banco Teste")?.balance).toBe("1000.00");
+
+    await caller.income.setReceived({ id: income.id, received: 0 });
+    entries = await caller.income.list({ monthId: month.id });
+    entry = entries.find(existing => existing.id === income.id);
+    expect(entry?.received).toBe(0);
+    expect(entry?.receivedValue).toBe("0.00");
+    balances = await caller.balances.list({ monthId: month.id });
+    expect(balances.find(balance => balance.accountName === "Banco Teste")?.balance).toBe("0.00");
+  });
 });

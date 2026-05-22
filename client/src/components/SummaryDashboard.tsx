@@ -29,7 +29,10 @@ export default function SummaryDashboard({ monthId }: { monthId: number }) {
   const totalRemaining = Math.max(totalExpenses - totalPaid, 0);
   const totalMonth = totalPaid + totalRemaining;
   const totalIncome = income.reduce((sum, e) => sum + parseMoney(e.value), 0);
-  const totalReceivedIncome = income.filter(e => e.received === 1).reduce((sum, e) => sum + parseMoney(e.value), 0);
+  const totalReceivedIncome = income.reduce((sum, e) => {
+    const savedValue = parseMoney(e.receivedValue || "0.00");
+    return sum + (savedValue > 0 ? savedValue : e.received === 1 ? parseMoney(e.value) : 0);
+  }, 0);
   const totalBankBalance = balances.reduce((sum, b) => sum + parseMoney(b.balance), 0);
   
   // O fluxo de caixa agora inclui o que sobrou do mês anterior

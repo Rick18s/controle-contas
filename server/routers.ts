@@ -798,6 +798,7 @@ export const appRouter = router({
         monthId: z.number(),
         name: z.string(),
         value: z.string().optional(),
+        receivedValue: z.string().optional(),
         received: z.number().optional(),
         receivedAccountName: z.string().optional().nullable(),
       }))
@@ -812,6 +813,7 @@ export const appRouter = router({
         id: z.number(),
         name: z.string().optional(),
         value: z.string().optional(),
+        receivedValue: z.string().optional(),
         received: z.number().optional(),
         receivedAccountName: z.string().optional().nullable(),
       }))
@@ -820,13 +822,18 @@ export const appRouter = router({
         const current = await requireIncomeInActiveOrganization(ctx, input.id);
         const { id, ...data } = input;
         if (data.value !== undefined && current.received === 1 && current.receivedAccountName) {
-          const delta = parseMoneyValue(data.value) - parseMoneyValue(current.value);
+          const currentReceivedValue = parseMoneyValue(current.receivedValue);
+          const nextValue = parseMoneyValue(data.value);
+          const nextReceivedValue = Math.min(currentReceivedValue, nextValue);
+          const delta = nextReceivedValue - currentReceivedValue;
           await adjustBankBalance(current.monthId, current.receivedAccountName, delta, {
             userId: ctx.user.id,
             description: `Ajuste de entrada: ${current.name}`,
             sourceType: "income_entry",
             sourceId: current.id,
           });
+          data.receivedValue = formatMoneyValue(nextReceivedValue);
+          data.received = nextReceivedValue >= nextValue ? 1 : 0;
         }
         await db.updateIncome(id, data);
         return { success: true };
@@ -836,11 +843,14 @@ export const appRouter = router({
         id: z.number(),
         received: z.number().refine(value => value === 0 || value === 1),
         accountName: z.string().optional().nullable(),
+        amount: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         await requireCanEdit(ctx);
         const entry = await requireIncomeInActiveOrganization(ctx, input.id);
-        const value = parseMoneyValue(entry.value);
+        const totalValue = parseMoneyValue(entry.value);
+        const currentReceivedValue = parseMoneyValue(entry.receivedValue);
+        const amount = input.amount !== undefined ? parseMoneyValue(input.amount) : totalValue;
         const nextReceived = input.received;
         const nextAccount = input.accountName?.trim() || null;
         const previousAccount = entry.receivedAccountName || null;
@@ -848,38 +858,108 @@ export const appRouter = router({
         if (nextReceived === 1 && !nextAccount) {
           throw new Error("Escolha a conta bancária onde o valor entrou");
         }
-
-        if (entry.received === 1 && previousAccount && (nextReceived === 0 || previousAccount !== nextAccount)) {
-          await adjustBankBalance(entry.monthId, previousAccount, -value, {
-            userId: ctx.user.id,
-            description: `Recebimento desfeito: ${entry.name}`,
-            sourceType: "income_entry",
-            sourceId: entry.id,
-          });
+        if (nextReceived === 1 && amount <= 0) {
+          throw new Error("Informe um valor recebido maior que zero");
         }
 
-        if (nextReceived === 1 && (entry.received !== 1 || previousAccount !== nextAccount)) {
-          await adjustBankBalance(entry.monthId, nextAccount, value, {
+        if (nextReceived === 0) {
+          if (currentReceivedValue > 0 && previousAccount) {
+            await adjustBankBalance(entry.monthId, previousAccount, -currentReceivedValue, {
+              userId: ctx.user.id,
+              description: `Recebimento desfeito: ${entry.name}`,
+              sourceType: "income_entry",
+              sourceId: entry.id,
+            });
+          }
+          await db.updateIncome(input.id, {
+            received: 0,
+            receivedValue: "0.00",
+            receivedAccountName: null,
+          });
+          return { success: true };
+        }
+
+        if (currentReceivedValue > 0 && previousAccount && previousAccount !== nextAccount) {
+          throw new Error("Esta entrada parcial já começou em outro banco. Use o mesmo banco para evitar duplicidade no saldo.");
+        }
+
+        const nextReceivedValue = Math.min(
+          totalValue > 0 ? totalValue : currentReceivedValue + amount,
+          currentReceivedValue + amount
+        );
+        const amountApplied = Math.max(nextReceivedValue - currentReceivedValue, 0);
+        if (amountApplied <= 0) {
+          await db.updateIncome(input.id, {
+            received: 1,
+            receivedValue: formatMoneyValue(currentReceivedValue),
+            receivedAccountName: nextAccount,
+          });
+          return { success: true };
+        }
+
+        await adjustBankBalance(entry.monthId, nextAccount, amountApplied, {
+          userId: ctx.user.id,
+          description: `Recebimento: ${entry.name}`,
+          sourceType: "income_entry",
+          sourceId: entry.id,
+        });
+
+        const finalTotalValue = totalValue > 0 ? totalValue : nextReceivedValue;
+
+        await db.updateIncome(input.id, {
+          value: formatMoneyValue(finalTotalValue),
+          received: nextReceivedValue >= finalTotalValue ? 1 : 0,
+          receivedValue: formatMoneyValue(nextReceivedValue),
+          receivedAccountName: nextAccount,
+        });
+        return { success: true };
+      }),
+    registerReceipt: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        amount: z.string(),
+        accountName: z.string().min(1),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await requireCanEdit(ctx);
+        const entry = await requireIncomeInActiveOrganization(ctx, input.id);
+        const amount = parseMoneyValue(input.amount);
+        const accountName = input.accountName.trim();
+        if (amount <= 0) throw new Error("Informe um valor recebido maior que zero");
+        if (!accountName) throw new Error("Escolha a conta bancária onde o valor entrou");
+
+        const totalValue = parseMoneyValue(entry.value);
+        const currentReceivedValue = parseMoneyValue(entry.receivedValue);
+        if (currentReceivedValue > 0 && entry.receivedAccountName && entry.receivedAccountName !== accountName) {
+          throw new Error("Esta entrada parcial já começou em outro banco. Use o mesmo banco para evitar duplicidade no saldo.");
+        }
+        const nextReceivedValue = Math.min(totalValue > 0 ? totalValue : currentReceivedValue + amount, currentReceivedValue + amount);
+        const finalTotalValue = totalValue > 0 ? totalValue : nextReceivedValue;
+        const amountApplied = Math.max(nextReceivedValue - currentReceivedValue, 0);
+        if (amountApplied <= 0) throw new Error("Esta entrada já está totalmente recebida");
+
+        await adjustBankBalance(entry.monthId, accountName, amountApplied, {
             userId: ctx.user.id,
             description: `Recebimento: ${entry.name}`,
             sourceType: "income_entry",
             sourceId: entry.id,
-          });
-        }
+        });
 
         await db.updateIncome(input.id, {
-          received: nextReceived,
-          receivedAccountName: nextReceived === 1 ? nextAccount : null,
+          value: formatMoneyValue(finalTotalValue),
+          received: nextReceivedValue >= finalTotalValue ? 1 : 0,
+          receivedValue: formatMoneyValue(nextReceivedValue),
+          receivedAccountName: accountName,
         });
-        return { success: true };
+        return { success: true, receivedValue: nextReceivedValue, remainingValue: Math.max(finalTotalValue - nextReceivedValue, 0) };
       }),
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ ctx, input }) => {
         await requireCanEdit(ctx);
         const entry = await requireIncomeInActiveOrganization(ctx, input.id);
-        if (entry.received === 1 && entry.receivedAccountName) {
-          await adjustBankBalance(entry.monthId, entry.receivedAccountName, -parseMoneyValue(entry.value), {
+        if (parseMoneyValue(entry.receivedValue) > 0 && entry.receivedAccountName) {
+          await adjustBankBalance(entry.monthId, entry.receivedAccountName, -parseMoneyValue(entry.receivedValue), {
             userId: ctx.user.id,
             description: `Entrada removida: ${entry.name}`,
             sourceType: "income_entry",
@@ -994,6 +1074,7 @@ export const appRouter = router({
             const created = await db.createIncome(input.monthId, {
               name: transaction.description,
               value: formatMoneyValue(amount),
+              receivedValue: formatMoneyValue(amount),
               received: 1,
               receivedAccountName: accountName,
             });

@@ -29,6 +29,16 @@ function cleanItemName(name: string) {
   return name.replace(/^\[P[1-4]\]\s*/i, "");
 }
 
+function getReceivedIncomeValue(entry: { value: string; receivedValue?: string | null; received: number }) {
+  const savedValue = parseMoney(entry.receivedValue || "0.00");
+  if (savedValue > 0) return savedValue;
+  return entry.received === 1 ? parseMoney(entry.value) : 0;
+}
+
+function getRemainingIncomeValue(entry: { value: string; receivedValue?: string | null; received: number }) {
+  return Math.max(parseMoney(entry.value) - getReceivedIncomeValue(entry), 0);
+}
+
 function priorityLabel(priority: number | null) {
   if (priority === 1) return "P1";
   if (priority === 2) return "P2";
@@ -61,16 +71,15 @@ export default function PaymentSimulator({ monthId }: { monthId: number }) {
   const income = incomeQuery.data || [];
   const balances = balancesQuery.data || [];
 
-  const pendingIncomeEntries = useMemo(() => income.filter(entry => entry.received !== 1), [income]);
+  const pendingIncomeEntries = useMemo(() => income.filter(entry => getRemainingIncomeValue(entry) > 0), [income]);
   const pendingIncomeIds = useMemo(() => pendingIncomeEntries.map(entry => entry.id), [pendingIncomeEntries]);
   const currentBalance = balances.reduce((sum, balance) => sum + parseMoney(balance.balance), 0);
   const selectedPendingIncome = pendingIncomeEntries
     .filter(entry => selectedIncomeIds.includes(entry.id))
-    .reduce((sum, entry) => sum + parseMoney(entry.value), 0);
-  const totalPendingIncome = pendingIncomeEntries.reduce((sum, entry) => sum + parseMoney(entry.value), 0);
+    .reduce((sum, entry) => sum + getRemainingIncomeValue(entry), 0);
+  const totalPendingIncome = pendingIncomeEntries.reduce((sum, entry) => sum + getRemainingIncomeValue(entry), 0);
   const receivedIncome = income
-    .filter(entry => entry.received === 1)
-    .reduce((sum, entry) => sum + parseMoney(entry.value), 0);
+    .reduce((sum, entry) => sum + getReceivedIncomeValue(entry), 0);
 
   useEffect(() => {
     setSelectedIncomeIds(current => {
@@ -196,7 +205,7 @@ export default function PaymentSimulator({ monthId }: { monthId: number }) {
                   <label key={entry.id} className="flex cursor-pointer items-center justify-between gap-3 px-3 py-2 text-xs hover:bg-cyan-400/[0.05]">
                     <span className="min-w-0">
                       <span className="block truncate text-gray-100">{entry.name}</span>
-                      <span className="text-muted-foreground">{formatBrl(parseMoney(entry.value))}</span>
+                      <span className="text-muted-foreground">Falta {formatBrl(getRemainingIncomeValue(entry))}</span>
                     </span>
                     <input
                       type="checkbox"
