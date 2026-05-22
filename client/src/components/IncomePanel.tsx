@@ -1,6 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Check } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { formatBrl, parseMoney } from "@/lib/money";
@@ -36,6 +36,7 @@ export default function IncomePanel({ monthId }: { monthId: number }) {
   const deleteIncome = trpc.income.delete.useMutation();
 
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [showNewIncomeDialog, setShowNewIncomeDialog] = useState(false);
   const [receiptTarget, setReceiptTarget] = useState<{ id: number; name: string; value: string } | null>(null);
   const [receiptAccountName, setReceiptAccountName] = useState("");
 
@@ -44,8 +45,9 @@ export default function IncomePanel({ monthId }: { monthId: number }) {
   const totalIncome = entries.reduce((sum, e) => sum + parseMoney(e.value), 0);
   const totalReceived = entries.filter(e => e.received === 1).reduce((sum, e) => sum + parseMoney(e.value), 0);
 
-  const handleAdd = async () => {
-    await createIncome.mutateAsync({ monthId, name: "Nova entrada", value: "0.00", received: 0 });
+  const handleAdd = async (data: { name: string; value: string }) => {
+    await createIncome.mutateAsync({ monthId, name: data.name, value: data.value || "0.00", received: 0 });
+    setShowNewIncomeDialog(false);
     incomeQuery.refetch();
     toast.success("Entrada adicionada");
   };
@@ -94,7 +96,7 @@ export default function IncomePanel({ monthId }: { monthId: number }) {
         <h2 className="text-sm font-mono uppercase tracking-widest text-primary" >
           💰 Entradas
         </h2>
-        <Button onClick={handleAdd} size="sm" variant="ghost" className="text-green-400 hover:text-green-300 gap-1 text-xs">
+        <Button onClick={() => setShowNewIncomeDialog(true)} size="sm" variant="ghost" className="text-green-400 hover:text-green-300 gap-1 text-xs">
           <Plus className="w-3 h-3" /> Nova Entrada
         </Button>
       </div>
@@ -104,10 +106,7 @@ export default function IncomePanel({ monthId }: { monthId: number }) {
           <IncomeEntryCard
             key={entry.id}
             entry={entry}
-            isEditing={editingId === entry.id}
             onEdit={() => setEditingId(entry.id)}
-            onClose={() => setEditingId(null)}
-            onUpdate={(data) => updateIncome.mutate({ id: entry.id, ...data })}
             onDelete={() => { void handleDeleteIncome(entry); }}
             onToggleReceived={() => {
               if (entry.received === 1) {
@@ -119,6 +118,30 @@ export default function IncomePanel({ monthId }: { monthId: number }) {
           />
         ))}
       </div>
+
+      <IncomeEntryDialog
+        open={showNewIncomeDialog}
+        title="Nova entrada"
+        entry={null}
+        isSaving={createIncome.isPending}
+        onClose={() => setShowNewIncomeDialog(false)}
+        onSave={handleAdd}
+      />
+
+      {entries.map(entry => (
+        <IncomeEntryDialog
+          key={`income-dialog-${entry.id}`}
+          open={editingId === entry.id}
+          title="Editar entrada"
+          entry={entry}
+          isSaving={updateIncome.isPending}
+          onClose={() => setEditingId(null)}
+          onSave={(data) => {
+            updateIncome.mutate({ id: entry.id, ...data });
+            setEditingId(null);
+          }}
+        />
+      ))}
 
       {/* Totals */}
       <div className="mt-4 pt-3 border-t flex gap-6 text-xs font-mono" style={{ borderColor: 'rgba(0,240,255,0.1)' }}>
@@ -163,59 +186,12 @@ export default function IncomePanel({ monthId }: { monthId: number }) {
   );
 }
 
-function IncomeEntryCard({ entry, isEditing, onEdit, onClose, onUpdate, onDelete, onToggleReceived }: {
+function IncomeEntryCard({ entry, onEdit, onDelete, onToggleReceived }: {
   entry: { id: number; name: string; value: string; received: number; receivedAccountName?: string | null };
-  isEditing: boolean;
   onEdit: () => void;
-  onClose: () => void;
-  onUpdate: (data: { name?: string; value?: string }) => void;
   onDelete: () => void;
   onToggleReceived: () => void;
 }) {
-  const [name, setName] = useState(entry.name);
-  const [value, setValue] = useState(entry.value);
-
-  useEffect(() => {
-    setName(entry.name);
-    setValue(entry.value);
-  }, [entry]);
-
-  const saveEdit = () => {
-    onUpdate({ name, value });
-    onClose();
-  };
-
-  if (isEditing) {
-    return (
-      <div className="rounded-lg p-4 space-y-3 bg-card border border-border shadow-sm">
-        <div className="space-y-1">
-          <Label className="text-[10px] uppercase text-muted-foreground">Nome da Entrada</Label>
-          <input
-            className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-            value={name}
-            onChange={e => setName(e.target.value)}
-            placeholder="Ex: Salário"
-            autoFocus
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-[10px] uppercase text-muted-foreground">Valor Previsto (R$)</Label>
-          <input
-            className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-            type="number"
-            step="0.01"
-            value={value}
-            onChange={e => setValue(e.target.value)}
-            placeholder="0.00"
-          />
-        </div>
-        <div className="flex justify-end pt-1">
-          <Button size="sm" variant="ghost" onClick={saveEdit} className="text-muted-foreground hover:text-foreground text-xs h-7">Concluir Edição</Button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div
       className={`rounded-lg p-3 border cursor-pointer transition-all hover:border-purple-500/40 ${entry.received ? 'border-green-500/20 bg-green-500/5' : 'border-white/5 bg-zinc-800/50'}`}
@@ -258,5 +234,79 @@ function IncomeEntryCard({ entry, isEditing, onEdit, onClose, onUpdate, onDelete
         </button>
       </div>
     </div>
+  );
+}
+
+function IncomeEntryDialog({
+  open,
+  title,
+  entry,
+  isSaving,
+  onClose,
+  onSave,
+}: {
+  open: boolean;
+  title: string;
+  entry: { id: number; name: string; value: string } | null;
+  isSaving: boolean;
+  onClose: () => void;
+  onSave: (data: { name: string; value: string }) => void | Promise<void>;
+}) {
+  const [name, setName] = useState(entry?.name || "");
+  const [value, setValue] = useState(entry?.value || "0.00");
+
+  useEffect(() => {
+    if (!open) return;
+    setName(entry?.name || "");
+    setValue(entry?.value || "0.00");
+  }, [entry, open]);
+
+  const handleSubmit = async () => {
+    if (!name.trim()) {
+      toast.error("Digite o nome da entrada");
+      return;
+    }
+    await onSave({ name: name.trim(), value: value || "0.00" });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
+      <DialogContent className="bg-card text-card-foreground border border-border sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-primary font-mono text-sm uppercase tracking-widest">{title}</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase text-muted-foreground">Nome da entrada</Label>
+            <input
+              className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              value={name}
+              onChange={event => setName(event.target.value)}
+              placeholder="Ex: Salário"
+              autoFocus
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase text-muted-foreground">Valor previsto (R$)</Label>
+            <input
+              className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              type="number"
+              step="0.01"
+              value={value}
+              onChange={event => setValue(event.target.value)}
+              placeholder="0.00"
+            />
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button variant="ghost" onClick={onClose} className="text-gray-400 text-xs">Cancelar</Button>
+          <Button onClick={() => { void handleSubmit(); }} disabled={isSaving} className="text-xs">
+            {isSaving ? "Salvando..." : "Salvar entrada"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

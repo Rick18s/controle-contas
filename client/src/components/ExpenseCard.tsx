@@ -56,10 +56,12 @@ function withPriority(name: string, priority: string) {
 export default function ExpenseCard({ card, onRefresh }: { card: CardData; onRefresh: () => void }) {
   const utils = trpc.useUtils();
   const [editingItem, setEditingItem] = useState<number | null>(null);
+  const [showNewItemDialog, setShowNewItemDialog] = useState(false);
 
   const balancesQuery = trpc.balances.list.useQuery({ monthId: card.monthId });
   const createCard = trpc.cards.create.useMutation();
   const createItem = trpc.items.create.useMutation();
+  const updateCreatedItem = trpc.items.update.useMutation();
   const deleteItem = trpc.items.delete.useMutation();
   const deleteCard = trpc.cards.delete.useMutation();
   const updateCard = trpc.cards.update.useMutation({ onSuccess: () => onRefresh() });
@@ -88,14 +90,40 @@ export default function ExpenseCard({ card, onRefresh }: { card: CardData; onRef
     toast.success("Item restaurado");
   };
 
-  const handleAddItem = async () => {
-    await createItem.mutateAsync({
+  const handleAddItem = async (data: {
+    name: string;
+    dueDate: string;
+    value: string;
+    paidValue: string;
+    paidAccountName: string;
+    status: "pago" | "parcial" | "pendente";
+    priority: string;
+  }) => {
+    const paidAmount = parseMoney(data.paidValue);
+    const created = await createItem.mutateAsync({
       cardId: card.id,
-      name: "Novo item",
-      value: "0.00",
+      name: withPriority(data.name, data.priority),
+      dueDate: data.dueDate || undefined,
+      value: data.value || "0.00",
       paidValue: "0.00",
+      paidAccountName: null,
       status: "pendente",
     });
+    if (paidAmount > 0) {
+      await updateCreatedItem.mutateAsync({
+        id: created.id,
+        paidValue: data.paidValue,
+        paidAccountName: data.paidAccountName.trim(),
+        status: data.status,
+      });
+      await Promise.all([
+        balancesQuery.refetch(),
+        utils.balances.list.invalidate({ monthId: card.monthId }),
+        utils.balances.transactions.invalidate({ monthId: card.monthId }),
+        utils.months.getAnalytics.invalidate(),
+      ]);
+    }
+    setShowNewItemDialog(false);
     onRefresh();
     toast.success("Item adicionado");
   };
@@ -184,9 +212,7 @@ export default function ExpenseCard({ card, onRefresh }: { card: CardData; onRef
           <ItemRow
             key={item.id}
             item={item}
-            isEditing={editingItem === item.id}
             onEdit={() => setEditingItem(item.id)}
-            onClose={() => setEditingItem(null)}
             onRefresh={onRefresh}
             onBalancesRefresh={() => {
               void balancesQuery.refetch();
@@ -202,7 +228,7 @@ export default function ExpenseCard({ card, onRefresh }: { card: CardData; onRef
 
       {/* Add Item */}
       <div className="px-4 py-2 border-t border-border bg-card">
-        <Button variant="ghost" size="sm" onClick={handleAddItem} className="text-gray-500 hover:text-foreground text-xs gap-1 w-full justify-start">
+        <Button variant="ghost" size="sm" onClick={() => setShowNewItemDialog(true)} className="text-gray-500 hover:text-foreground text-xs gap-1 w-full justify-start">
           <Plus className="w-3 h-3" /> Adicionar item
         </Button>
       </div>
@@ -222,27 +248,52 @@ export default function ExpenseCard({ card, onRefresh }: { card: CardData; onRef
           <span className="text-blue-200 font-semibold">{formatBrl(remaining)}</span>
         </div>
       </div>
+
+      <ExpenseItemDialog
+        open={showNewItemDialog}
+        title="Nova despesa"
+        balances={balancesQuery.data || []}
+        item={null}
+        isSaving={createItem.isPending || updateCreatedItem.isPending}
+        onClose={() => setShowNewItemDialog(false)}
+        onSave={handleAddItem}
+      />
+
+      {sortedItems.map(item => (
+        <ExpenseItemDialog
+          key={`dialog-${item.id}`}
+          open={editingItem === item.id}
+          title="Editar despesa"
+          balances={balancesQuery.data || []}
+          item={item}
+          isSaving={false}
+          onClose={() => setEditingItem(null)}
+          onSave={() => undefined}
+          onUpdated={() => {
+            onRefresh();
+            void balancesQuery.refetch();
+            void utils.balances.list.invalidate({ monthId: card.monthId });
+            void utils.balances.transactions.invalidate({ monthId: card.monthId });
+            void utils.months.getAnalytics.invalidate();
+            setEditingItem(null);
+          }}
+        />
+      ))}
     </div>
   );
 }
 
-function ItemRow({ item, isEditing, onEdit, onClose, onRefresh, onBalancesRefresh, onDelete, balances }: {
+function ItemRow({ item, onEdit, onRefresh, onBalancesRefresh, onDelete, balances }: {
   item: ExpenseItem;
-  isEditing: boolean;
   onEdit: () => void;
-  onClose: () => void;
   onRefresh: () => void;
   onBalancesRefresh: () => void;
   onDelete: () => void;
   balances: Array<{ id: number; accountName: string }>;
 }) {
-  const [name, setName] = useState(cleanItemName(item.name));
-  const [dueDate, setDueDate] = useState(item.dueDate || "");
-  const [value, setValue] = useState(item.value);
   const [paidValue, setPaidValue] = useState(item.paidValue);
   const [paidAccountName, setPaidAccountName] = useState(item.paidAccountName || "");
   const [status, setStatus] = useState<"pago" | "parcial" | "pendente">(item.status);
-  const [priority, setPriority] = useState(getItemPriority(item.name));
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [paymentAccountName, setPaymentAccountName] = useState("");
 
@@ -256,146 +307,16 @@ function ItemRow({ item, isEditing, onEdit, onClose, onRefresh, onBalancesRefres
 
   // Sync local state when item changes from outside
   useEffect(() => {
-    setName(cleanItemName(item.name));
-    setDueDate(item.dueDate || "");
-    setValue(item.value);
     setPaidValue(item.paidValue);
     setPaidAccountName(item.paidAccountName || "");
     setStatus(item.status);
-    setPriority(getItemPriority(item.name));
   }, [item]);
-
-  const savedName = (nextName = name, nextPriority = priority) => withPriority(nextName, nextPriority);
-
-  const saveEdit = () => {
-    const paidAmount = parseMoney(paidValue);
-    const accountName = paidAccountName.trim();
-    if (paidAmount > 0 && !accountName) {
-      toast.error("Informe de qual banco saiu o pagamento");
-      return;
-    }
-    updateItem.mutate({
-      id: item.id,
-      name: savedName(),
-      dueDate,
-      value,
-      paidValue: paidAmount > 0 ? paidValue : "0.00",
-      paidAccountName: paidAmount > 0 ? accountName : null,
-      status,
-    });
-    onClose();
-  };
 
   const statusColors: Record<string, string> = {
     pago: 'bg-green-500/10 text-green-400 border-green-500/20',
     parcial: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
     pendente: 'bg-zinc-800 text-zinc-300 border-zinc-700',
   };
-
-  if (isEditing) {
-    return (
-      <div className="px-4 py-3 space-y-3 bg-muted/10 border-y border-border">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <Label className="text-[10px] uppercase text-muted-foreground">Nome da Conta</Label>
-            <input
-              className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder="Ex: Aluguel"
-              autoFocus
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-[10px] uppercase text-muted-foreground">Vencimento</Label>
-            <input
-              className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-              value={dueDate}
-              onChange={e => setDueDate(e.target.value)}
-              placeholder="Ex: 20/05"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="space-y-1">
-            <Label className="text-[10px] uppercase text-muted-foreground">Valor (R$)</Label>
-            <input
-              className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-              type="number"
-              step="0.01"
-              value={value}
-              onChange={e => { 
-                const newVal = e.target.value;
-                setValue(newVal); 
-                // Auto-calc status if paid matches new value
-                let s = status;
-                if (Number(newVal) > 0 && Number(paidValue) >= Number(newVal)) s = "pago";
-                else if (Number(paidValue) > 0) s = "parcial";
-                setStatus(s);
-              }}
-              placeholder="0.00"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-[10px] uppercase text-muted-foreground">Pago (R$)</Label>
-            <input
-              className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-              type="number"
-              step="0.01"
-              value={paidValue}
-              onChange={e => { 
-                const newPaid = e.target.value;
-                const nextPaidAmount = Number(newPaid);
-                const nextAccount = nextPaidAmount > 0 ? (paidAccountName || balances[0]?.accountName || "") : "";
-                setPaidValue(newPaid);
-                setPaidAccountName(nextAccount);
-                // Auto-calc status based on payment
-                let s = "pendente" as "pago" | "parcial" | "pendente";
-                if (nextPaidAmount > 0) {
-                  s = nextPaidAmount >= Number(value) ? "pago" : "parcial";
-                }
-                setStatus(s);
-              }}
-              placeholder="0.00"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-[10px] uppercase text-muted-foreground">Prioridade</Label>
-            <Select
-              value={priority}
-              onValueChange={setPriority}
-            >
-              <SelectTrigger className="w-full h-[34px] bg-background">
-                <SelectValue placeholder="Prioridade" />
-              </SelectTrigger>
-              <SelectContent>
-                {PRIORITY_OPTIONS.map(option => (
-                  <SelectItem key={option.value || "none"} value={option.value}>{option.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <BankAccountPicker
-              value={paidAccountName}
-              onChange={setPaidAccountName}
-              accounts={balances}
-              label="Banco do pagamento"
-              placeholder={parseMoney(paidValue) > 0 ? "Ex: Inter, C6, Caixa" : "Sem pagamento"}
-              disabled={parseMoney(paidValue) <= 0}
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-end pt-1">
-          <Button size="sm" variant="ghost" onClick={saveEdit} disabled={updateItem.isPending} className="text-muted-foreground hover:text-foreground text-xs h-7">
-            {updateItem.isPending ? "Salvando..." : "Concluir Edição"}
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   const isPaid = item.status === "pago";
   const isPartial = item.status === "parcial";
@@ -519,5 +440,197 @@ function ItemRow({ item, isEditing, onEdit, onClose, onRefresh, onBalancesRefres
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+type ExpenseFormData = {
+  name: string;
+  dueDate: string;
+  value: string;
+  paidValue: string;
+  paidAccountName: string;
+  status: "pago" | "parcial" | "pendente";
+  priority: string;
+};
+
+function ExpenseItemDialog({
+  open,
+  title,
+  balances,
+  item,
+  isSaving,
+  onClose,
+  onSave,
+  onUpdated,
+}: {
+  open: boolean;
+  title: string;
+  balances: Array<{ id: number; accountName: string }>;
+  item: ExpenseItem | null;
+  isSaving: boolean;
+  onClose: () => void;
+  onSave: (data: ExpenseFormData) => void | Promise<void>;
+  onUpdated?: () => void;
+}) {
+  const [name, setName] = useState(item ? cleanItemName(item.name) : "");
+  const [dueDate, setDueDate] = useState(item?.dueDate || "");
+  const [value, setValue] = useState(item?.value || "0.00");
+  const [paidValue, setPaidValue] = useState(item?.paidValue || "0.00");
+  const [paidAccountName, setPaidAccountName] = useState(item?.paidAccountName || "");
+  const [status, setStatus] = useState<"pago" | "parcial" | "pendente">(item?.status || "pendente");
+  const [priority, setPriority] = useState(item ? getItemPriority(item.name) : "none");
+
+  const updateItem = trpc.items.update.useMutation({
+    onSuccess: () => {
+      toast.success("Despesa atualizada");
+      onUpdated?.();
+    },
+    onError: (error) => toast.error(error.message || "Não foi possível salvar a despesa"),
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    setName(item ? cleanItemName(item.name) : "");
+    setDueDate(item?.dueDate || "");
+    setValue(item?.value || "0.00");
+    setPaidValue(item?.paidValue || "0.00");
+    setPaidAccountName(item?.paidAccountName || "");
+    setStatus(item?.status || "pendente");
+    setPriority(item ? getItemPriority(item.name) : "none");
+  }, [item, open]);
+
+  const setPaidAndStatus = (nextPaidValue: string, nextValue = value) => {
+    const paidAmount = parseMoney(nextPaidValue);
+    setPaidValue(nextPaidValue);
+    if (paidAmount <= 0) {
+      setStatus("pendente");
+      setPaidAccountName("");
+      return;
+    }
+    if (!paidAccountName && balances[0]?.accountName) setPaidAccountName(balances[0].accountName);
+    setStatus(paidAmount >= parseMoney(nextValue) ? "pago" : "parcial");
+  };
+
+  const handleSubmit = async () => {
+    const paidAmount = parseMoney(paidValue);
+    const accountName = paidAccountName.trim();
+    if (!name.trim()) {
+      toast.error("Digite o nome da despesa");
+      return;
+    }
+    if (paidAmount > 0 && !accountName) {
+      toast.error("Informe de qual banco saiu o pagamento");
+      return;
+    }
+
+    const payload: ExpenseFormData = {
+      name,
+      dueDate,
+      value: value || "0.00",
+      paidValue: paidAmount > 0 ? paidValue : "0.00",
+      paidAccountName: accountName,
+      status,
+      priority,
+    };
+
+    if (item) {
+      updateItem.mutate({
+        id: item.id,
+        name: withPriority(payload.name, payload.priority),
+        dueDate: payload.dueDate,
+        value: payload.value,
+        paidValue: payload.paidValue,
+        paidAccountName: paidAmount > 0 ? accountName : null,
+        status: payload.status,
+      });
+      return;
+    }
+
+    await onSave(payload);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
+      <DialogContent className="bg-card text-card-foreground border border-border sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="text-primary font-mono text-sm uppercase tracking-widest">{title}</DialogTitle>
+        </DialogHeader>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase text-muted-foreground">Nome da conta</Label>
+            <input
+              className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              value={name}
+              onChange={event => setName(event.target.value)}
+              placeholder="Ex: Aluguel"
+              autoFocus
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase text-muted-foreground">Vencimento</Label>
+            <input
+              className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              value={dueDate}
+              onChange={event => setDueDate(event.target.value)}
+              placeholder="Ex: 20/05"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase text-muted-foreground">Valor (R$)</Label>
+            <input
+              className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              type="number"
+              step="0.01"
+              value={value}
+              onChange={event => {
+                setValue(event.target.value);
+                if (parseMoney(paidValue) > 0) setPaidAndStatus(paidValue, event.target.value);
+              }}
+              placeholder="0.00"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase text-muted-foreground">Pago (R$)</Label>
+            <input
+              className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              type="number"
+              step="0.01"
+              value={paidValue}
+              onChange={event => setPaidAndStatus(event.target.value)}
+              placeholder="0.00"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase text-muted-foreground">Prioridade</Label>
+            <Select value={priority} onValueChange={setPriority}>
+              <SelectTrigger className="w-full bg-background">
+                <SelectValue placeholder="Prioridade" />
+              </SelectTrigger>
+              <SelectContent>
+                {PRIORITY_OPTIONS.map(option => (
+                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <BankAccountPicker
+            value={paidAccountName}
+            onChange={setPaidAccountName}
+            accounts={balances}
+            label="Banco do pagamento"
+            placeholder={parseMoney(paidValue) > 0 ? "Ex: Inter, C6, Caixa" : "Sem pagamento"}
+            disabled={parseMoney(paidValue) <= 0}
+          />
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button variant="ghost" onClick={onClose} className="text-gray-400 text-xs">Cancelar</Button>
+          <Button onClick={() => { void handleSubmit(); }} disabled={isSaving || updateItem.isPending} className="text-xs">
+            {isSaving || updateItem.isPending ? "Salvando..." : "Salvar despesa"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
