@@ -9,9 +9,10 @@ import { ENV } from './_core/env';
 let _db: ReturnType<typeof drizzle> | null = null;
 
 function normalizeIncomeEntry<T extends { value: string; received: number; receivedValue?: string | null }>(entry: T): T & { receivedValue: string } {
+  const receivedValue = entry.receivedValue ?? "0.00";
   return {
     ...entry,
-    receivedValue: entry.receivedValue ?? (entry.received === 1 ? entry.value : "0.00"),
+    receivedValue: entry.received === 1 && Number.parseFloat(receivedValue) <= 0 ? entry.value : receivedValue,
   };
 }
 
