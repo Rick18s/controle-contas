@@ -1058,6 +1058,22 @@ export async function listBankTransactions(monthId: number) {
   return db.select().from(bankTransactions).where(eq(bankTransactions.monthId, monthId)).orderBy(asc(bankTransactions.id));
 }
 
+export async function listBankTransactionsBySource(monthId: number, sourceType: string, sourceId: number) {
+  const db = await getDb();
+  if (!db) {
+    return memoryBankTransactions
+      .filter(transaction => transaction.monthId === monthId && transaction.sourceType === sourceType && transaction.sourceId === sourceId)
+      .sort((a, b) => a.id - b.id);
+  }
+  return db.select().from(bankTransactions)
+    .where(and(
+      eq(bankTransactions.monthId, monthId),
+      eq(bankTransactions.sourceType, sourceType),
+      eq(bankTransactions.sourceId, sourceId)
+    ))
+    .orderBy(asc(bankTransactions.id));
+}
+
 export async function getBankTransactionByFingerprint(monthId: number, fingerprint: string) {
   const db = await getDb();
   if (!db) {

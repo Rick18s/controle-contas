@@ -216,4 +216,45 @@ describe("finance - income router input validation", () => {
     balances = await caller.balances.list({ monthId: month.id });
     expect(balances.find(balance => balance.accountName === "Banco Teste")?.balance).toBe("0.00");
   });
+
+  it("allows partial receipts from the same income to land in different bank accounts", async () => {
+    const user = await db.createPasswordUser({
+      username: `multi-bank-income-user-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      name: "Multi Bank Income User",
+      passwordHash: "test-hash",
+      role: "user",
+    });
+    const [organization] = await db.getOrganizationsForUser(user.id);
+    const ctx: TrpcContext = {
+      user,
+      activeOrganizationId: organization!.id,
+      req: { protocol: "https", headers: {} } as TrpcContext["req"],
+      res: { clearCookie: () => {} } as TrpcContext["res"],
+    };
+    const caller = appRouter.createCaller(ctx);
+    const month = await caller.months.create({ label: "2099-06" });
+    const income = await caller.income.create({ monthId: month.id, name: "Distribuição de Lucro", value: "25000.00", received: 0 });
+
+    await caller.income.registerReceipt({ id: income.id, amount: "12500.00", accountName: "Conta Pedro" });
+    await caller.income.registerReceipt({ id: income.id, amount: "12500.00", accountName: "Conta Débora" });
+
+    const entries = await caller.income.list({ monthId: month.id });
+    const entry = entries.find(existing => existing.id === income.id);
+    expect(entry?.received).toBe(1);
+    expect(entry?.receivedValue).toBe("25000.00");
+    expect(entry?.receivedAccountName).toBe("Múltiplos bancos");
+    expect(entry?.receiptAccounts).toEqual([
+      { accountName: "Conta Débora", amount: 12500 },
+      { accountName: "Conta Pedro", amount: 12500 },
+    ]);
+
+    let balances = await caller.balances.list({ monthId: month.id });
+    expect(balances.find(balance => balance.accountName === "Conta Pedro")?.balance).toBe("12500.00");
+    expect(balances.find(balance => balance.accountName === "Conta Débora")?.balance).toBe("12500.00");
+
+    await caller.income.setReceived({ id: income.id, received: 0 });
+    balances = await caller.balances.list({ monthId: month.id });
+    expect(balances.find(balance => balance.accountName === "Conta Pedro")?.balance).toBe("0.00");
+    expect(balances.find(balance => balance.accountName === "Conta Débora")?.balance).toBe("0.00");
+  });
 });

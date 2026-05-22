@@ -210,6 +210,50 @@ function formatMoneyValue(value: number) {
   return value.toFixed(2);
 }
 
+function summarizeReceiptAccounts(
+  transactions: Awaited<ReturnType<typeof db.listBankTransactionsBySource>>,
+  fallback?: { accountName?: string | null; amount?: number }
+) {
+  const accounts = new Map<string, number>();
+  transactions.forEach(transaction => {
+    const accountName = transaction.accountName?.trim();
+    if (!accountName) return;
+    accounts.set(accountName, (accounts.get(accountName) ?? 0) + parseMoneyValue(transaction.amount));
+  });
+
+  if (accounts.size === 0 && fallback?.accountName && (fallback.amount ?? 0) > 0) {
+    accounts.set(fallback.accountName, fallback.amount ?? 0);
+  }
+
+  return Array.from(accounts.entries())
+    .map(([accountName, amount]) => ({ accountName, amount }))
+    .filter(receipt => receipt.amount > 0.005)
+    .sort((a, b) => b.amount - a.amount || a.accountName.localeCompare(b.accountName));
+}
+
+async function getIncomeReceiptAccounts(entry: Awaited<ReturnType<typeof db.getIncomeById>> extends infer T ? NonNullable<T> : never) {
+  const transactions = await db.listBankTransactionsBySource(entry.monthId, "income_entry", entry.id);
+  return summarizeReceiptAccounts(transactions, {
+    accountName: entry.receivedAccountName,
+    amount: parseMoneyValue(entry.receivedValue),
+  });
+}
+
+async function reverseIncomeReceiptBalances(
+  entry: Awaited<ReturnType<typeof db.getIncomeById>> extends infer T ? NonNullable<T> : never,
+  meta: { userId: number; description: string }
+) {
+  const receipts = await getIncomeReceiptAccounts(entry);
+  for (const receipt of receipts) {
+    await adjustBankBalance(entry.monthId, receipt.accountName, -receipt.amount, {
+      userId: meta.userId,
+      description: meta.description,
+      sourceType: "income_entry",
+      sourceId: entry.id,
+    });
+  }
+}
+
 async function findPlannedExpenseMatch(monthId: number, result: QuickAddResult) {
   if (result.transactionType !== "expense") return null;
 
@@ -791,7 +835,17 @@ export const appRouter = router({
       .input(z.object({ monthId: z.number() }))
       .query(async ({ ctx, input }) => {
         await requireMonthInActiveOrganization(ctx, input.monthId);
-        return db.getIncomeByMonth(input.monthId);
+        const entries = await db.getIncomeByMonth(input.monthId);
+        return Promise.all(entries.map(async entry => ({
+          ...entry,
+          receiptAccounts: summarizeReceiptAccounts(
+            await db.listBankTransactionsBySource(entry.monthId, "income_entry", entry.id),
+            {
+              accountName: entry.receivedAccountName,
+              amount: parseMoneyValue(entry.receivedValue),
+            }
+          ),
+        })));
       }),
     create: protectedProcedure
       .input(z.object({
@@ -821,17 +875,33 @@ export const appRouter = router({
         await requireCanEdit(ctx);
         const current = await requireIncomeInActiveOrganization(ctx, input.id);
         const { id, ...data } = input;
-        if (data.value !== undefined && current.received === 1 && current.receivedAccountName) {
+        if (data.value !== undefined && parseMoneyValue(current.receivedValue) > 0) {
           const currentReceivedValue = parseMoneyValue(current.receivedValue);
           const nextValue = parseMoneyValue(data.value);
           const nextReceivedValue = Math.min(currentReceivedValue, nextValue);
           const delta = nextReceivedValue - currentReceivedValue;
-          await adjustBankBalance(current.monthId, current.receivedAccountName, delta, {
-            userId: ctx.user.id,
-            description: `Ajuste de entrada: ${current.name}`,
-            sourceType: "income_entry",
-            sourceId: current.id,
-          });
+          if (delta < 0) {
+            const receipts = await getIncomeReceiptAccounts(current);
+            let remainingToReverse = Math.abs(delta);
+            for (const receipt of receipts) {
+              if (remainingToReverse <= 0) break;
+              const amountToReverse = Math.min(receipt.amount, remainingToReverse);
+              remainingToReverse -= amountToReverse;
+              await adjustBankBalance(current.monthId, receipt.accountName, -amountToReverse, {
+                userId: ctx.user.id,
+                description: `Ajuste de entrada: ${current.name}`,
+                sourceType: "income_entry",
+                sourceId: current.id,
+              });
+            }
+          } else if (delta > 0 && current.receivedAccountName && current.receivedAccountName !== "Múltiplos bancos") {
+            await adjustBankBalance(current.monthId, current.receivedAccountName, delta, {
+              userId: ctx.user.id,
+              description: `Ajuste de entrada: ${current.name}`,
+              sourceType: "income_entry",
+              sourceId: current.id,
+            });
+          }
           data.receivedValue = formatMoneyValue(nextReceivedValue);
           data.received = nextReceivedValue >= nextValue ? 1 : 0;
         }
@@ -863,12 +933,10 @@ export const appRouter = router({
         }
 
         if (nextReceived === 0) {
-          if (currentReceivedValue > 0 && previousAccount) {
-            await adjustBankBalance(entry.monthId, previousAccount, -currentReceivedValue, {
+          if (currentReceivedValue > 0) {
+            await reverseIncomeReceiptBalances(entry, {
               userId: ctx.user.id,
               description: `Recebimento desfeito: ${entry.name}`,
-              sourceType: "income_entry",
-              sourceId: entry.id,
             });
           }
           await db.updateIncome(input.id, {
@@ -877,10 +945,6 @@ export const appRouter = router({
             receivedAccountName: null,
           });
           return { success: true };
-        }
-
-        if (currentReceivedValue > 0 && previousAccount && previousAccount !== nextAccount) {
-          throw new Error("Esta entrada parcial já começou em outro banco. Use o mesmo banco para evitar duplicidade no saldo.");
         }
 
         const nextReceivedValue = Math.min(
@@ -910,7 +974,7 @@ export const appRouter = router({
           value: formatMoneyValue(finalTotalValue),
           received: nextReceivedValue >= finalTotalValue ? 1 : 0,
           receivedValue: formatMoneyValue(nextReceivedValue),
-          receivedAccountName: nextAccount,
+          receivedAccountName: previousAccount && previousAccount !== nextAccount ? "Múltiplos bancos" : nextAccount,
         });
         return { success: true };
       }),
@@ -930,9 +994,6 @@ export const appRouter = router({
 
         const totalValue = parseMoneyValue(entry.value);
         const currentReceivedValue = parseMoneyValue(entry.receivedValue);
-        if (currentReceivedValue > 0 && entry.receivedAccountName && entry.receivedAccountName !== accountName) {
-          throw new Error("Esta entrada parcial já começou em outro banco. Use o mesmo banco para evitar duplicidade no saldo.");
-        }
         const nextReceivedValue = Math.min(totalValue > 0 ? totalValue : currentReceivedValue + amount, currentReceivedValue + amount);
         const finalTotalValue = totalValue > 0 ? totalValue : nextReceivedValue;
         const amountApplied = Math.max(nextReceivedValue - currentReceivedValue, 0);
@@ -949,7 +1010,7 @@ export const appRouter = router({
           value: formatMoneyValue(finalTotalValue),
           received: nextReceivedValue >= finalTotalValue ? 1 : 0,
           receivedValue: formatMoneyValue(nextReceivedValue),
-          receivedAccountName: accountName,
+          receivedAccountName: entry.receivedAccountName && entry.receivedAccountName !== accountName ? "Múltiplos bancos" : accountName,
         });
         return { success: true, receivedValue: nextReceivedValue, remainingValue: Math.max(finalTotalValue - nextReceivedValue, 0) };
       }),
@@ -958,12 +1019,10 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         await requireCanEdit(ctx);
         const entry = await requireIncomeInActiveOrganization(ctx, input.id);
-        if (parseMoneyValue(entry.receivedValue) > 0 && entry.receivedAccountName) {
-          await adjustBankBalance(entry.monthId, entry.receivedAccountName, -parseMoneyValue(entry.receivedValue), {
+        if (parseMoneyValue(entry.receivedValue) > 0) {
+          await reverseIncomeReceiptBalances(entry, {
             userId: ctx.user.id,
             description: `Entrada removida: ${entry.name}`,
-            sourceType: "income_entry",
-            sourceId: entry.id,
           });
         }
         await db.deleteIncome(input.id);

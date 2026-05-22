@@ -15,6 +15,7 @@ type IncomeEntry = {
   receivedValue?: string | null;
   received: number;
   receivedAccountName?: string | null;
+  receiptAccounts?: Array<{ accountName: string; amount: number }>;
 };
 
 function getReceivedValue(entry: IncomeEntry) {
@@ -115,7 +116,7 @@ export default function IncomePanel({ monthId }: { monthId: number }) {
     const remaining = getRemainingValue(entry);
     setReceiptTarget(entry);
     setReceiptAmount((remaining > 0 ? remaining : parseMoney(entry.value)).toFixed(2));
-    setReceiptAccountName(entry.receivedAccountName || balances[0]?.accountName || "");
+    setReceiptAccountName(entry.receivedAccountName && entry.receivedAccountName !== "Múltiplos bancos" ? entry.receivedAccountName : balances[0]?.accountName || "");
   };
 
   const confirmReceived = async () => {
@@ -214,19 +215,32 @@ export default function IncomePanel({ monthId }: { monthId: number }) {
               Informe quanto entrou agora e em qual banco caiu o dinheiro.
             </p>
             {receiptTarget && (
-              <div className="grid grid-cols-3 gap-2 rounded border border-border bg-background/40 p-3 text-xs font-mono">
-                <div>
-                  <span className="block text-muted-foreground">Previsto</span>
-                  <strong className="text-white">{formatBrl(parseMoney(receiptTarget.value))}</strong>
+              <div className="space-y-3 rounded border border-border bg-background/40 p-3 text-xs font-mono">
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <span className="block text-muted-foreground">Previsto</span>
+                    <strong className="text-white">{formatBrl(parseMoney(receiptTarget.value))}</strong>
+                  </div>
+                  <div>
+                    <span className="block text-muted-foreground">Recebido</span>
+                    <strong className="text-green-400">{formatBrl(getReceivedValue(receiptTarget))}</strong>
+                  </div>
+                  <div>
+                    <span className="block text-muted-foreground">Restante</span>
+                    <strong className="text-blue-200">{formatBrl(getRemainingValue(receiptTarget))}</strong>
+                  </div>
                 </div>
-                <div>
-                  <span className="block text-muted-foreground">Recebido</span>
-                  <strong className="text-green-400">{formatBrl(getReceivedValue(receiptTarget))}</strong>
-                </div>
-                <div>
-                  <span className="block text-muted-foreground">Restante</span>
-                  <strong className="text-blue-200">{formatBrl(getRemainingValue(receiptTarget))}</strong>
-                </div>
+                {receiptTarget.receiptAccounts && receiptTarget.receiptAccounts.length > 0 && (
+                  <div className="space-y-1 border-t border-border pt-2">
+                    <span className="block text-[10px] uppercase text-muted-foreground">Já entrou em</span>
+                    {receiptTarget.receiptAccounts.map(receipt => (
+                      <div key={receipt.accountName} className="flex items-center justify-between gap-2">
+                        <span className="truncate text-green-300">{receipt.accountName}</span>
+                        <strong className="text-green-400">{formatBrl(receipt.amount)}</strong>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
             <div className="space-y-1">
@@ -302,7 +316,12 @@ function IncomeEntryCard({ entry, onEdit, onDelete, onToggleReceived }: {
           </span>
           {receivedValue > 0 && (
             <span className="text-[10px] text-green-400/80 font-mono">
-              Recebido {formatBrl(receivedValue)}{entry.receivedAccountName ? ` · ${entry.receivedAccountName}` : ""}
+              Recebido {formatBrl(receivedValue)}
+            </span>
+          )}
+          {entry.receiptAccounts && entry.receiptAccounts.length > 0 && (
+            <span className="max-w-[220px] truncate text-[10px] text-green-300/70 font-mono">
+              {entry.receiptAccounts.map(receipt => `${receipt.accountName}: ${formatBrl(receipt.amount)}`).join(" · ")}
             </span>
           )}
           {remainingValue > 0 && (
