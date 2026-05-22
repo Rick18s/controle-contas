@@ -1,4 +1,5 @@
-import { Landmark } from "lucide-react";
+import { useState } from "react";
+import { ChevronDown, Landmark, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type BankAccount = {
@@ -25,7 +26,9 @@ export default function BankAccountPicker({
   disabled?: boolean;
   autoFocus?: boolean;
 }) {
-  const normalizedValue = value.trim().toLowerCase();
+  const [showCustomInput, setShowCustomInput] = useState(accounts.length === 0);
+  const selectedAccount = accounts.find(account => account.accountName === value);
+  const shouldShowCustomInput = showCustomInput || accounts.length === 0 || (value.trim() && !selectedAccount);
 
   return (
     <div className="space-y-2">
@@ -34,38 +37,49 @@ export default function BankAccountPicker({
       </label>
 
       {accounts.length > 0 && (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {accounts.map(account => {
-            const selected = account.accountName.trim().toLowerCase() === normalizedValue;
-            return (
-              <Button
-                key={account.id}
-                type="button"
-                variant="ghost"
-                disabled={disabled}
-                onClick={() => onChange(account.accountName)}
-                className={`h-auto min-h-10 justify-start gap-2 rounded-lg border px-3 py-2 text-left text-xs ${
-                  selected
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border bg-background/30 text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Landmark className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate">{account.accountName}</span>
-              </Button>
-            );
-          })}
+        <div className="relative">
+          <Landmark className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary" />
+          <select
+            className="h-11 w-full appearance-none rounded-lg border border-border bg-background/70 py-2 pl-10 pr-10 text-sm text-white outline-none transition-colors focus:border-cyan-400 disabled:opacity-50"
+            value={selectedAccount ? selectedAccount.accountName : ""}
+            onChange={(event) => {
+              const nextValue = event.target.value;
+              if (nextValue === "__custom__") {
+                setShowCustomInput(true);
+                onChange("");
+                return;
+              }
+              setShowCustomInput(false);
+              onChange(nextValue);
+            }}
+            disabled={disabled}
+            autoFocus={autoFocus && !shouldShowCustomInput}
+          >
+            <option value="" disabled>Selecione o banco</option>
+            {accounts.map(account => (
+              <option key={account.id} value={account.accountName}>
+                {account.accountName}
+              </option>
+            ))}
+            <option value="__custom__">+ Criar/digitar outra conta</option>
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         </div>
       )}
 
-      <input
-        className="w-full rounded border border-border bg-background/50 px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-cyan-400 disabled:opacity-50"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        disabled={disabled}
-        autoFocus={autoFocus}
-      />
+      {shouldShowCustomInput && (
+        <div className="relative">
+          <Plus className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            className="h-11 w-full rounded-lg border border-border bg-background/50 py-2 pl-10 pr-3 text-sm text-white outline-none focus:border-cyan-400 disabled:opacity-50"
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder={accounts.length > 0 ? "Nome da nova conta" : placeholder}
+            disabled={disabled}
+            autoFocus={autoFocus && shouldShowCustomInput}
+          />
+        </div>
+      )}
 
       {helperText && (
         <p className="text-xs text-muted-foreground">{helperText}</p>
