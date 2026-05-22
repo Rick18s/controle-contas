@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { formatBrl, parseMoney } from "@/lib/money";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import BankAccountPicker from "@/components/BankAccountPicker";
 
 export default function IncomePanel({ monthId }: { monthId: number }) {
   const utils = trpc.useUtils();
@@ -140,22 +141,15 @@ export default function IncomePanel({ monthId }: { monthId: number }) {
             <p className="text-sm text-muted-foreground">
               Escolha em qual banco entrou {receiptTarget ? formatBrl(parseMoney(receiptTarget.value)) : ""}.
             </p>
-            <input
-              className="w-full rounded border border-border bg-background/50 px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-cyan-400"
+            <BankAccountPicker
               value={receiptAccountName}
-              onChange={(event) => setReceiptAccountName(event.target.value)}
+              onChange={setReceiptAccountName}
+              accounts={balances}
+              label="Banco de recebimento"
               placeholder="Ex: Inter, C6, Caixa"
-              list="receipt-accounts"
               autoFocus
+              helperText="O saldo do banco será atualizado automaticamente. Se a conta ainda não existir, ela será criada."
             />
-            <datalist id="receipt-accounts">
-              {balances.map(balance => (
-                <option key={balance.id} value={balance.accountName} />
-              ))}
-            </datalist>
-            <p className="text-xs text-muted-foreground">
-              O saldo do banco será atualizado automaticamente. Se a conta ainda não existir, ela será criada.
-            </p>
           </div>
           <DialogFooter className="gap-2">
             <Button variant="ghost" onClick={() => setReceiptTarget(null)} className="text-gray-400 text-xs">Cancelar</Button>

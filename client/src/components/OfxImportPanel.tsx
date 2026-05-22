@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Upload, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
+import BankAccountPicker from "@/components/BankAccountPicker";
 
 type OfxTransaction = {
   date: string;
@@ -21,12 +22,19 @@ export default function OfxImportPanel({ monthId }: { monthId: number }) {
   const [isSaving, setIsSaving] = useState(false);
   const utils = trpc.useUtils();
 
+  const balancesQuery = trpc.balances.list.useQuery({ monthId });
   const saveOfx = trpc.imports.saveOfxTransactions.useMutation();
 
   const selectedTransactions = useMemo(
     () => transactions.filter((_transaction, index) => selected[index]),
     [transactions, selected]
   );
+
+  useEffect(() => {
+    if (transactions.length > 0 && !accountName.trim() && balancesQuery.data?.[0]?.accountName) {
+      setAccountName(balancesQuery.data[0].accountName);
+    }
+  }, [accountName, balancesQuery.data, transactions.length]);
 
   const handleUpload = async (file: File | undefined) => {
     if (!file) return;
@@ -107,20 +115,15 @@ export default function OfxImportPanel({ monthId }: { monthId: number }) {
 
       {transactions.length > 0 && (
         <>
-          <div className="grid gap-2 sm:max-w-sm">
-            <label className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground" htmlFor="ofx-account">
-              Conta bancária relacionada
-            </label>
-            <input
-              id="ofx-account"
+          <div className="sm:max-w-xl">
+            <BankAccountPicker
               value={accountName}
-              onChange={(event) => setAccountName(event.target.value)}
+              onChange={setAccountName}
+              accounts={balancesQuery.data || []}
+              label="Conta bancária relacionada"
               placeholder="Ex: Banco Inter"
-              className="w-full rounded border border-border bg-background/50 px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-cyan-400"
+              helperText="As entradas somam nesse banco e as saídas descontam dele. Transações repetidas do mesmo OFX serão ignoradas."
             />
-            <p className="text-[11px] text-muted-foreground">
-              As entradas somam nesse banco e as saídas descontam dele. Transações repetidas do mesmo OFX serão ignoradas.
-            </p>
           </div>
 
           <div className="overflow-x-auto rounded-md border border-border">

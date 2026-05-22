@@ -8,6 +8,7 @@ import { CardCategoryIcon } from "@/components/CardCategoryIcon";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import BankAccountPicker from "@/components/BankAccountPicker";
 
 interface ExpenseItem {
   id: number;
@@ -376,23 +377,14 @@ function ItemRow({ item, isEditing, onEdit, onClose, onRefresh, onBalancesRefres
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-[10px] uppercase text-muted-foreground">Banco do pagamento</Label>
-            <input
-              className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+            <BankAccountPicker
               value={paidAccountName}
-              onChange={(event) => {
-                const nextAccount = event.target.value;
-                setPaidAccountName(nextAccount);
-              }}
+              onChange={setPaidAccountName}
+              accounts={balances}
+              label="Banco do pagamento"
               placeholder={parseMoney(paidValue) > 0 ? "Ex: Inter, C6, Caixa" : "Sem pagamento"}
               disabled={parseMoney(paidValue) <= 0}
-              list={`accounts-${item.id}`}
             />
-            <datalist id={`accounts-${item.id}`}>
-              {balances.map(balance => (
-                <option key={balance.id} value={balance.accountName} />
-              ))}
-            </datalist>
           </div>
         </div>
 
@@ -508,38 +500,15 @@ function ItemRow({ item, isEditing, onEdit, onClose, onRefresh, onBalancesRefres
             <p className="text-sm text-muted-foreground">
               Escolha de qual banco saiu {formatBrl(parseMoney(item.value))} para pagar {cleanItemName(item.name)}.
             </p>
-            <input
-              className="w-full rounded border border-border bg-background/50 px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-cyan-400"
+            <BankAccountPicker
               value={paymentAccountName}
-              onChange={(event) => setPaymentAccountName(event.target.value)}
+              onChange={setPaymentAccountName}
+              accounts={balances}
+              label="Banco usado"
               placeholder="Ex: Inter, C6, Caixa"
               autoFocus
-              list={`payment-accounts-${item.id}`}
+              helperText="Se a conta ainda não existir em Saldos, ela será criada com o valor descontado."
             />
-            <datalist id={`payment-accounts-${item.id}`}>
-              {balances.map(balance => (
-                <option key={balance.id} value={balance.accountName} />
-              ))}
-            </datalist>
-            {balances.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {balances.map(balance => (
-                  <Button
-                    key={balance.id}
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setPaymentAccountName(balance.accountName)}
-                    className="h-7 border border-border px-2 text-[11px] text-muted-foreground hover:text-primary"
-                  >
-                    {balance.accountName}
-                  </Button>
-                ))}
-              </div>
-            )}
-            <p className="text-xs text-muted-foreground">
-              Se a conta ainda não existir em Saldos, ela será criada com o valor descontado.
-            </p>
           </div>
           <DialogFooter className="gap-2">
             <Button variant="ghost" onClick={() => setShowPaymentDialog(false)} className="text-gray-400 text-xs">Cancelar</Button>

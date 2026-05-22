@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Sparkles, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import BankAccountPicker from "@/components/BankAccountPicker";
 
 interface QuickAddDialogProps {
   open: boolean;
@@ -15,13 +16,16 @@ interface QuickAddDialogProps {
 
 export default function QuickAddDialog({ open, onOpenChange, monthId, onSuccess }: QuickAddDialogProps) {
   const [text, setText] = useState("");
+  const [accountName, setAccountName] = useState("");
   const utils = trpc.useUtils();
+  const balancesQuery = trpc.balances.list.useQuery({ monthId }, { enabled: open });
   const quickAdd = trpc.ai.quickAdd.useMutation({
     onSuccess: async (result) => {
       await Promise.all([
         utils.cards.list.invalidate({ monthId }),
         utils.income.list.invalidate({ monthId }),
         utils.balances.list.invalidate({ monthId }),
+        utils.balances.transactions.invalidate({ monthId }),
         utils.months.getAnalytics.invalidate(),
       ]);
       toast.success(`${result.name} adicionado`);
@@ -34,9 +38,15 @@ export default function QuickAddDialog({ open, onOpenChange, monthId, onSuccess 
     }
   });
 
+  useEffect(() => {
+    if (open && !accountName.trim() && balancesQuery.data?.[0]?.accountName) {
+      setAccountName(balancesQuery.data[0].accountName);
+    }
+  }, [accountName, balancesQuery.data, open]);
+
   const handleQuickAdd = () => {
     if (!text.trim()) return;
-    quickAdd.mutate({ monthId, text });
+    quickAdd.mutate({ monthId, text, accountName: accountName.trim() || null });
   };
 
   return (
@@ -67,6 +77,16 @@ export default function QuickAddDialog({ open, onOpenChange, monthId, onSuccess 
           <p className="mt-3 text-[11px] text-slate-500">
             Gastos rápidos entram como pagos. Entradas ficam pendentes até você marcar como recebidas e escolher o banco.
           </p>
+          <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-950/40 p-3">
+            <BankAccountPicker
+              value={accountName}
+              onChange={setAccountName}
+              accounts={balancesQuery.data || []}
+              label="Banco para gastos pagos"
+              placeholder="Ex: Inter, C6, Caixa"
+              helperText="Se for uma despesa já paga, o valor será descontado deste banco. Se for receita, ela continua pendente para você receber depois."
+            />
+          </div>
         </div>
 
         <DialogFooter>
