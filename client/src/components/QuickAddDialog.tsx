@@ -28,7 +28,11 @@ export default function QuickAddDialog({ open, onOpenChange, monthId, onSuccess 
         utils.balances.transactions.invalidate({ monthId }),
         utils.months.getAnalytics.invalidate(),
       ]);
-      toast.success(`${result.name} adicionado`);
+      if (result.type === "expense" && "matchedExisting" in result && result.matchedExisting) {
+        toast.success(`${result.name}: pagamento abatido. Restante: ${Number(result.remaining || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`);
+      } else {
+        toast.success(`${result.name} adicionado`);
+      }
       setText("");
       onOpenChange(false);
       onSuccess();

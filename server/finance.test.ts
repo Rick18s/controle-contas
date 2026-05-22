@@ -127,6 +127,40 @@ describe("finance - items router input validation", () => {
     balances = await caller.balances.list({ monthId: month.id });
     expect(balances.find(balance => balance.accountName === "Banco Teste")?.balance).toBe("100.00");
   });
+
+  it("applies quick fuel expenses to an existing planned budget item", async () => {
+    const user = await db.createPasswordUser({
+      username: `quick-fuel-user-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      name: "Quick Fuel User",
+      passwordHash: "test-hash",
+      role: "user",
+    });
+    const [organization] = await db.getOrganizationsForUser(user.id);
+    const ctx: TrpcContext = {
+      user,
+      activeOrganizationId: organization!.id,
+      req: { protocol: "https", headers: {} } as TrpcContext["req"],
+      res: { clearCookie: () => {} } as TrpcContext["res"],
+    };
+    const caller = appRouter.createCaller(ctx);
+    const month = await caller.months.create({ label: "2099-04" });
+    await caller.balances.update({ monthId: month.id, accountName: "Banco Teste", balance: "1000.00" });
+    const card = await caller.cards.create({ monthId: month.id, name: "Casa" });
+    await caller.items.create({ cardId: card.id, name: "[P2] Combustível", value: "1000.00" });
+
+    const result = await caller.ai.quickAdd({ monthId: month.id, text: "gasolina 200", accountName: "Banco Teste" });
+    expect(result.type).toBe("expense");
+    expect("matchedExisting" in result && result.matchedExisting).toBe(true);
+
+    const cards = await caller.cards.list({ monthId: month.id });
+    const fuel = cards.flatMap(existingCard => existingCard.items).find(item => item.name.includes("Combustível"));
+    expect(fuel?.value).toBe("1000.00");
+    expect(fuel?.paidValue).toBe("200.00");
+    expect(fuel?.status).toBe("parcial");
+
+    const balances = await caller.balances.list({ monthId: month.id });
+    expect(balances.find(balance => balance.accountName === "Banco Teste")?.balance).toBe("800.00");
+  });
 });
 
 describe("finance - income router input validation", () => {

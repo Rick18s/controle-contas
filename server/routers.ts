@@ -128,6 +128,39 @@ function normalizeText(value: string) {
     .toLowerCase();
 }
 
+function cleanPriorityPrefix(value: string) {
+  return value.replace(/^\[P[1-4]\]\s*/i, "");
+}
+
+function getBudgetMatchTerms(value: string) {
+  const normalized = normalizeText(value);
+  const terms = new Set(
+    normalized
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .map(term => term.trim())
+      .filter(term => term.length >= 4)
+  );
+
+  const aliases: Array<{ pattern: RegExp; terms: string[] }> = [
+    { pattern: /\b(gasolina|posto|combustivel|alcool|etanol|diesel)\b/, terms: ["combustivel"] },
+    { pattern: /\b(mercado|supermercado|feira|compras)\b/, terms: ["mercado", "feira"] },
+    { pattern: /\b(energia|luz|eletricidade)\b/, terms: ["energia", "luz"] },
+    { pattern: /\b(internet|wifi|fibra)\b/, terms: ["internet"] },
+    { pattern: /\b(aluguel|locacao)\b/, terms: ["aluguel"] },
+    { pattern: /\b(condominio)\b/, terms: ["condominio"] },
+    { pattern: /\b(cabelo|barbeiro|salao)\b/, terms: ["cabelo"] },
+    { pattern: /\b(faxina|limpeza|diarista)\b/, terms: ["faxina"] },
+    { pattern: /\b(cartao|credito|nubank|itau|inter|picpay|c6|sofisa|xp)\b/, terms: ["cartao"] },
+  ];
+
+  aliases.forEach(alias => {
+    if (alias.pattern.test(normalized)) alias.terms.forEach(term => terms.add(term));
+  });
+
+  return Array.from(terms);
+}
+
 function parseQuickAddText(text: string, cards: Awaited<ReturnType<typeof db.getCardsByMonth>>): QuickAddResult | null {
   const trimmed = text.trim();
   const moneyMatch = trimmed.match(/(?:r\$\s*)?(\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)\s*(?:reais|real|rs)?/i);
@@ -175,6 +208,42 @@ function parseMoneyValue(value: string | number | null | undefined) {
 
 function formatMoneyValue(value: number) {
   return value.toFixed(2);
+}
+
+async function findPlannedExpenseMatch(monthId: number, result: QuickAddResult) {
+  if (result.transactionType !== "expense") return null;
+
+  const cards = await db.getCardsByMonth(monthId);
+  const cardItems = await Promise.all(
+    cards.map(async card => ({ card, items: await db.getItemsByCard(card.id) }))
+  );
+  const terms = getBudgetMatchTerms(result.name);
+  const normalizedName = normalizeText(result.name);
+
+  const candidates = cardItems.flatMap(({ card, items }) =>
+    items.map(item => {
+      const cleanName = cleanPriorityPrefix(item.name);
+      const normalizedItemName = normalizeText(cleanName);
+      const paidValue = parseMoneyValue(item.paidValue);
+      const totalValue = parseMoneyValue(item.value);
+      const remaining = Math.max(totalValue - paidValue, 0);
+      const exactNameMatch = normalizedItemName === normalizedName;
+      const termScore = terms.reduce((score, term) => {
+        if (normalizedItemName.includes(term)) return score + 3;
+        if (term.includes(normalizedItemName) && normalizedItemName.length >= 4) return score + 2;
+        return score;
+      }, 0);
+      const cardScore = result.cardId === card.id ? 1 : 0;
+      const openScore = remaining > 0 || totalValue === 0 ? 1 : 0;
+      const score = (exactNameMatch ? 10 : 0) + termScore + cardScore + openScore;
+
+      return { card, item, score, paidValue, totalValue };
+    })
+  )
+    .filter(candidate => candidate.score >= 3)
+    .sort((a, b) => b.score - a.score || (a.item.sortOrder ?? 0) - (b.item.sortOrder ?? 0));
+
+  return candidates[0] ?? null;
 }
 
 function hashSecureToken(token: string) {
@@ -1070,6 +1139,38 @@ Sua tarefa:
             receivedAccountName: null,
           });
           return { type: "income", id: created.id, name: result.name, value: result.value };
+        }
+
+        const plannedExpense = await findPlannedExpenseMatch(input.monthId, result);
+        if (plannedExpense) {
+          const nextPaidValue = plannedExpense.paidValue + result.value;
+          const nextTotalValue = Math.max(plannedExpense.totalValue, nextPaidValue);
+          const nextStatus = nextPaidValue >= nextTotalValue ? "pago" : "parcial";
+          const accountName = input.accountName?.trim() || plannedExpense.item.paidAccountName || null;
+
+          await adjustBankBalance(input.monthId, input.accountName, -result.value, {
+            userId: ctx.user.id,
+            description: `Lançamento rápido: ${result.name}`,
+            sourceType: "quick_add_budget",
+            sourceId: plannedExpense.item.id,
+          });
+
+          await db.updateItem(plannedExpense.item.id, {
+            value: formatMoneyValue(nextTotalValue),
+            paidValue: formatMoneyValue(nextPaidValue),
+            paidAccountName: accountName,
+            status: nextStatus,
+          });
+
+          return {
+            type: "expense",
+            id: plannedExpense.item.id,
+            cardId: plannedExpense.card.id,
+            name: cleanPriorityPrefix(plannedExpense.item.name),
+            value: result.value,
+            matchedExisting: true,
+            remaining: Math.max(nextTotalValue - nextPaidValue, 0),
+          };
         }
 
         let cardId = result.cardId;
