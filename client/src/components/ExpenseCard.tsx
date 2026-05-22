@@ -383,6 +383,9 @@ function ItemRow({ item, onEdit, onRefresh, onBalancesRefresh, onDelete, balance
               <>
                 <span className="text-[10px] text-green-600 font-medium">Pago {formatBrl(paidAmount)}</span>
                 <span className="text-[10px] text-blue-200 font-medium">Falta {formatBrl(remainingAmount)}</span>
+                {!item.paidAccountName && (
+                  <span className="text-[10px] text-red-300 font-medium">Banco não informado</span>
+                )}
               </>
             )}
           </div>
@@ -614,14 +617,32 @@ function ExpenseItemDialog({
               </SelectContent>
             </Select>
           </div>
-          <BankAccountPicker
-            value={paidAccountName}
-            onChange={setPaidAccountName}
-            accounts={balances}
-            label="Banco do pagamento"
-            placeholder={parseMoney(paidValue) > 0 ? "Ex: Inter, C6, Caixa" : "Sem pagamento"}
-            disabled={parseMoney(paidValue) <= 0}
-          />
+          <div className="rounded-lg border border-white/5 bg-black/20 p-3 sm:col-span-2">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-mono uppercase tracking-widest text-primary">De onde vai debitar</p>
+                <p className="text-xs text-muted-foreground">
+                  {parseMoney(paidValue) > 0
+                    ? `${formatBrl(parseMoney(paidValue))} será descontado do banco escolhido.`
+                    : "Informe um valor pago para escolher o banco."}
+                </p>
+              </div>
+              {status === "parcial" && (
+                <span className="rounded-full border border-purple-500/30 bg-purple-500/10 px-2 py-1 text-[10px] uppercase text-purple-300">
+                  parcial
+                </span>
+              )}
+            </div>
+            <BankAccountPicker
+              value={paidAccountName}
+              onChange={setPaidAccountName}
+              accounts={balances}
+              label="Banco do pagamento"
+              placeholder={parseMoney(paidValue) > 0 ? "Ex: Inter, C6, Caixa" : "Sem pagamento"}
+              disabled={parseMoney(paidValue) <= 0}
+              helperText={parseMoney(paidValue) > 0 ? "Esse é o banco que será debitado ao salvar a despesa." : undefined}
+            />
+          </div>
         </div>
 
         <DialogFooter className="gap-2">
