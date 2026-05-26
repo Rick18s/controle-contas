@@ -128,6 +128,7 @@ export default function Dashboard() {
           value: item.value,
           paidValue: item.paidValue,
           paidAccountName: item.paidAccountName,
+          paymentMode: item.paymentMode === "card" || item.paymentMode === "budget" ? item.paymentMode : "bank",
           status: item.status,
         });
       }
@@ -270,12 +271,12 @@ export default function Dashboard() {
   const handleExportSpreadsheet = () => {
     if (!selectedMonth) return;
     const rows: unknown[][] = [
-      ["Tipo", "Categoria/Conta", "Nome", "Vencimento", "Valor", "Pago/Recebido", "Status"],
+      ["Tipo", "Categoria/Conta", "Nome", "Vencimento", "Valor", "Pago/Recebido", "Forma", "Status"],
     ];
 
     (exportCardsQuery.data || []).forEach(card => {
       card.items.forEach(item => {
-        rows.push(["Despesa", card.name, item.name, item.dueDate || "", item.value, item.paidValue, item.status]);
+        rows.push(["Despesa", card.name, item.name, item.dueDate || "", item.value, item.paidValue, item.paymentMode || "bank", item.status]);
       });
     });
 
@@ -284,11 +285,11 @@ export default function Dashboard() {
         ? entry.receivedValue
         : entry.received === 1 ? entry.value : "0.00";
       const remainingValue = Math.max(Number.parseFloat(entry.value || "0") - Number.parseFloat(receivedValue || "0"), 0);
-      rows.push(["Entrada", "Entradas", entry.name, "", entry.value, receivedValue, remainingValue > 0 && Number.parseFloat(receivedValue || "0") > 0 ? "parcial" : entry.received === 1 ? "recebido" : "pendente"]);
+      rows.push(["Entrada", "Entradas", entry.name, "", entry.value, receivedValue, "", remainingValue > 0 && Number.parseFloat(receivedValue || "0") > 0 ? "parcial" : entry.received === 1 ? "recebido" : "pendente"]);
     });
 
     (exportBalancesQuery.data || []).forEach(balance => {
-      rows.push(["Saldo bancário", balance.accountName, "", "", balance.balance, "", ""]);
+      rows.push(["Saldo bancário", balance.accountName, "", "", balance.balance, "", "", ""]);
     });
 
     const csv = `\uFEFF${rows.map(row => row.map(csvCell).join(';')).join('\n')}`;

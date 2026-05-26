@@ -352,6 +352,7 @@ type MemoryItem = {
   value: string;
   paidValue: string;
   paidAccountName?: string | null;
+  paymentMode: "bank" | "card" | "budget";
   status: "pago" | "parcial" | "pendente";
   sortOrder: number | null;
 };
@@ -417,6 +418,10 @@ function replaceMemory<T>(target: T[], values: T[] | undefined) {
   target.splice(0, target.length, ...(values ?? []));
 }
 
+function normalizePaymentMode(value: string | null | undefined): "bank" | "card" | "budget" {
+  return value === "card" || value === "budget" ? value : "bank";
+}
+
 function ensureMemoryLoaded() {
   if (memoryLoaded) return;
   memoryLoaded = true;
@@ -442,7 +447,10 @@ function ensureMemoryLoaded() {
     replaceMemory(memoryOrganizationMembers, (snapshot.organizationMembers ?? []).map(member => ({ ...member, createdAt: toDate(member.createdAt) })));
     replaceMemory(memoryMonths, (snapshot.months ?? []).map(month => ({ ...month, createdAt: month.createdAt ? toDate(month.createdAt) : undefined })));
     replaceMemory(memoryCards, snapshot.cards);
-    replaceMemory(memoryItems, snapshot.items);
+    replaceMemory(memoryItems, (snapshot.items ?? []).map(item => ({
+      ...item,
+      paymentMode: normalizePaymentMode(item.paymentMode),
+    })));
     replaceMemory(memoryIncome, (snapshot.income ?? []).map(entry => ({
       ...entry,
       receivedValue: entry.received === 1 ? entry.value : "0.00",
@@ -673,6 +681,8 @@ function ensureMemorySeed(userId: number, organizationId: number) {
         dueDate: item.dueDate ?? "",
         value: item.value,
         paidValue: item.paidValue ?? "0.00",
+        paidAccountName: null,
+        paymentMode: "bank",
         status: item.status ?? "pendente",
         sortOrder: itemSortOrder,
       });
@@ -874,7 +884,7 @@ export async function getItemById(itemId: number) {
   return result[0];
 }
 
-export async function createItem(cardId: number, data: { name: string; dueDate?: string; value?: string; paidValue?: string; paidAccountName?: string | null; status?: "pago" | "parcial" | "pendente" }) {
+export async function createItem(cardId: number, data: { name: string; dueDate?: string; value?: string; paidValue?: string; paidAccountName?: string | null; paymentMode?: "bank" | "card" | "budget"; status?: "pago" | "parcial" | "pendente" }) {
   const db = await getDb();
   if (!db) {
     const item = {
@@ -885,6 +895,7 @@ export async function createItem(cardId: number, data: { name: string; dueDate?:
       value: data.value || "0.00",
       paidValue: data.paidValue || "0.00",
       paidAccountName: data.paidAccountName ?? null,
+      paymentMode: data.paymentMode ?? "bank",
       status: data.status || "pendente",
       sortOrder: memoryItems.filter(existing => existing.cardId === cardId).length,
     };
@@ -899,12 +910,13 @@ export async function createItem(cardId: number, data: { name: string; dueDate?:
     value: data.value || "0.00",
     paidValue: data.paidValue || "0.00",
     paidAccountName: data.paidAccountName ?? null,
+    paymentMode: data.paymentMode ?? "bank",
     status: data.status || "pendente",
   }).returning({ id: expenseItems.id });
   return { id: result[0].id };
 }
 
-export async function updateItem(itemId: number, data: { name?: string; dueDate?: string; value?: string; paidValue?: string; paidAccountName?: string | null; status?: "pago" | "parcial" | "pendente" }) {
+export async function updateItem(itemId: number, data: { name?: string; dueDate?: string; value?: string; paidValue?: string; paidAccountName?: string | null; paymentMode?: "bank" | "card" | "budget"; status?: "pago" | "parcial" | "pendente" }) {
   const db = await getDb();
   if (!db) {
     const item = memoryItems.find(existing => existing.id === itemId);
@@ -1461,6 +1473,7 @@ export async function copyMonthData(userId: number, sourceMonthId: number, optio
           value: sourceItem.value,
           paidValue: resetPaymentStatus ? "0.00" : sourceItem.paidValue,
           paidAccountName: resetPaymentStatus ? null : sourceItem.paidAccountName,
+          paymentMode: resetPaymentStatus ? "bank" : normalizePaymentMode(sourceItem.paymentMode),
           status: resetPaymentStatus ? "pendente" : sourceItem.status,
         });
         if (db) {

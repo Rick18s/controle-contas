@@ -85,6 +85,7 @@ export const expenseItems = pgTable("expense_items", {
   value: decimal("value", { precision: 12, scale: 2 }).default("0.00").notNull(),
   paidValue: decimal("paidValue", { precision: 12, scale: 2 }).default("0.00").notNull(),
   paidAccountName: varchar("paidAccountName", { length: 100 }),
+  paymentMode: varchar("paymentMode", { length: 20 }).default("bank").notNull(),
   status: statusEnum("status").default("pendente").notNull(),
   sortOrder: integer("sortOrder").default(0),
 });

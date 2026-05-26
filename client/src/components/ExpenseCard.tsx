@@ -18,6 +18,7 @@ interface ExpenseItem {
   value: string;
   paidValue: string;
   paidAccountName?: string | null;
+  paymentMode?: PaymentMode | string;
   status: "pago" | "parcial" | "pendente";
   sortOrder: number | null;
 }
@@ -38,6 +39,22 @@ const PRIORITY_OPTIONS = [
   { value: "3", label: "P3 Importante" },
   { value: "4", label: "P4 Opcional" },
 ] as const;
+
+type PaymentMode = "bank" | "card" | "budget";
+
+const PAYMENT_MODE_OPTIONS: Array<{ value: PaymentMode; label: string; description: string }> = [
+  { value: "bank", label: "Saiu do banco", description: "Debita o saldo bancário agora." },
+  { value: "card", label: "Foi no cartão", description: "Controla o orçamento, sem mexer no banco." },
+  { value: "budget", label: "Só controle", description: "Marca como usado, sem débito bancário." },
+];
+
+function paymentModeLabel(mode: PaymentMode | undefined) {
+  return PAYMENT_MODE_OPTIONS.find(option => option.value === (mode || "bank"))?.label || "Saiu do banco";
+}
+
+function normalizePaymentMode(mode: string | null | undefined): PaymentMode {
+  return mode === "card" || mode === "budget" ? mode : "bank";
+}
 
 function getItemPriority(name: string) {
   const match = name.match(/^\[P([1-4])\]/i);
@@ -84,6 +101,7 @@ export default function ExpenseCard({ card, onRefresh }: { card: CardData; onRef
       value: item.value,
       paidValue: item.paidValue,
       paidAccountName: item.paidAccountName,
+      paymentMode: normalizePaymentMode(item.paymentMode),
       status: item.status,
     });
     onRefresh();
@@ -96,6 +114,7 @@ export default function ExpenseCard({ card, onRefresh }: { card: CardData; onRef
     value: string;
     paidValue: string;
     paidAccountName: string;
+    paymentMode: PaymentMode;
     status: "pago" | "parcial" | "pendente";
     priority: string;
   }) => {
@@ -114,6 +133,7 @@ export default function ExpenseCard({ card, onRefresh }: { card: CardData; onRef
         id: created.id,
         paidValue: data.paidValue,
         paidAccountName: data.paidAccountName.trim(),
+        paymentMode: data.paymentMode,
         status: data.status,
       });
       await Promise.all([
@@ -155,6 +175,7 @@ export default function ExpenseCard({ card, onRefresh }: { card: CardData; onRef
         value: item.value,
         paidValue: item.paidValue,
         paidAccountName: item.paidAccountName,
+        paymentMode: normalizePaymentMode(item.paymentMode),
         status: item.status,
       });
     }
@@ -293,9 +314,11 @@ function ItemRow({ item, onEdit, onRefresh, onBalancesRefresh, onDelete, balance
 }) {
   const [paidValue, setPaidValue] = useState(item.paidValue);
   const [paidAccountName, setPaidAccountName] = useState(item.paidAccountName || "");
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>(normalizePaymentMode(item.paymentMode));
   const [status, setStatus] = useState<"pago" | "parcial" | "pendente">(item.status);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [paymentAccountName, setPaymentAccountName] = useState("");
+  const [quickPaymentMode, setQuickPaymentMode] = useState<PaymentMode>("bank");
 
   const updateItem = trpc.items.update.useMutation({
     onSuccess: () => {
@@ -309,6 +332,7 @@ function ItemRow({ item, onEdit, onRefresh, onBalancesRefresh, onDelete, balance
   useEffect(() => {
     setPaidValue(item.paidValue);
     setPaidAccountName(item.paidAccountName || "");
+    setPaymentMode(normalizePaymentMode(item.paymentMode));
     setStatus(item.status);
   }, [item]);
 
@@ -333,25 +357,29 @@ function ItemRow({ item, onEdit, onRefresh, onBalancesRefresh, onDelete, balance
       setStatus("pendente");
       setPaidValue("0.00");
       setPaidAccountName("");
-      updateItem.mutate({ id: item.id, status: "pendente", paidValue: "0.00", paidAccountName: null });
+      setPaymentMode("bank");
+      updateItem.mutate({ id: item.id, status: "pendente", paidValue: "0.00", paidAccountName: null, paymentMode: "bank" });
       return;
     }
 
+    setQuickPaymentMode(normalizePaymentMode(item.paymentMode));
     setPaymentAccountName(item.paidAccountName || balances[0]?.accountName || "");
     setShowPaymentDialog(true);
   };
 
   const confirmPayment = () => {
     const accountName = paymentAccountName.trim();
-    if (!accountName) return;
+    if (quickPaymentMode === "bank" && !accountName) return;
     setStatus("pago");
     setPaidValue(item.value);
-    setPaidAccountName(accountName);
+    setPaidAccountName(quickPaymentMode === "bank" ? accountName : "");
+    setPaymentMode(quickPaymentMode);
     updateItem.mutate({
       id: item.id,
       status: "pago",
       paidValue: item.value,
-      paidAccountName: accountName,
+      paidAccountName: quickPaymentMode === "bank" ? accountName : null,
+      paymentMode: quickPaymentMode,
     });
     setShowPaymentDialog(false);
   };
@@ -379,11 +407,14 @@ function ItemRow({ item, onEdit, onRefresh, onBalancesRefresh, onDelete, balance
             {item.paidAccountName && paidAmount > 0 && (
               <span className="text-[10px] text-green-400/70 font-mono">{item.paidAccountName}</span>
             )}
+            {paidAmount > 0 && normalizePaymentMode(item.paymentMode) !== "bank" && (
+              <span className="text-[10px] text-blue-200/80 font-mono">{paymentModeLabel(normalizePaymentMode(item.paymentMode))}</span>
+            )}
             {isPartial && (
               <>
                 <span className="text-[10px] text-green-600 font-medium">Pago {formatBrl(paidAmount)}</span>
                 <span className="text-[10px] text-blue-200 font-medium">Falta {formatBrl(remainingAmount)}</span>
-                {!item.paidAccountName && (
+                {(!item.paidAccountName && normalizePaymentMode(item.paymentMode) === "bank") && (
                   <span className="text-[10px] text-red-300 font-medium">Banco não informado</span>
                 )}
               </>
@@ -422,21 +453,35 @@ function ItemRow({ item, onEdit, onRefresh, onBalancesRefresh, onDelete, balance
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Escolha de qual banco saiu {formatBrl(parseMoney(item.value))} para pagar {cleanItemName(item.name)}.
+              Informe como esse pagamento foi feito para {cleanItemName(item.name)}.
             </p>
+            <div className="grid grid-cols-1 gap-2">
+              {PAYMENT_MODE_OPTIONS.map(option => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setQuickPaymentMode(option.value)}
+                  className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors ${quickPaymentMode === option.value ? "border-primary bg-primary/10 text-primary" : "border-border bg-background/40 text-muted-foreground hover:text-foreground"}`}
+                >
+                  <span className="block font-semibold">{option.label}</span>
+                  <span className="text-[10px] opacity-80">{option.description}</span>
+                </button>
+              ))}
+            </div>
             <BankAccountPicker
               value={paymentAccountName}
               onChange={setPaymentAccountName}
               accounts={balances}
               label="Banco usado"
               placeholder="Ex: Inter, C6, Caixa"
+              disabled={quickPaymentMode !== "bank"}
               autoFocus
-              helperText="Se a conta ainda não existir em Saldos, ela será criada com o valor descontado."
+              helperText={quickPaymentMode === "bank" ? "Se a conta ainda não existir em Saldos, ela será criada com o valor descontado." : "Essa opção não altera o saldo bancário agora."}
             />
           </div>
           <DialogFooter className="gap-2">
             <Button variant="ghost" onClick={() => setShowPaymentDialog(false)} className="text-gray-400 text-xs">Cancelar</Button>
-            <Button onClick={confirmPayment} disabled={!paymentAccountName.trim() || updateItem.isPending} className="text-xs">
+            <Button onClick={confirmPayment} disabled={(quickPaymentMode === "bank" && !paymentAccountName.trim()) || updateItem.isPending} className="text-xs">
               Confirmar pagamento
             </Button>
           </DialogFooter>
@@ -452,6 +497,7 @@ type ExpenseFormData = {
   value: string;
   paidValue: string;
   paidAccountName: string;
+  paymentMode: PaymentMode;
   status: "pago" | "parcial" | "pendente";
   priority: string;
 };
@@ -481,6 +527,7 @@ function ExpenseItemDialog({
   const [paidValue, setPaidValue] = useState(item?.paidValue || "0.00");
   const [paymentNow, setPaymentNow] = useState("");
   const [paidAccountName, setPaidAccountName] = useState(item?.paidAccountName || "");
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>(normalizePaymentMode(item?.paymentMode));
   const [status, setStatus] = useState<"pago" | "parcial" | "pendente">(item?.status || "pendente");
   const [priority, setPriority] = useState(item ? getItemPriority(item.name) : "none");
 
@@ -500,6 +547,7 @@ function ExpenseItemDialog({
     setPaidValue(item?.paidValue || "0.00");
     setPaymentNow("");
     setPaidAccountName(item?.paidAccountName || "");
+    setPaymentMode(normalizePaymentMode(item?.paymentMode));
     setStatus(item?.status || "pendente");
     setPriority(item ? getItemPriority(item.name) : "none");
   }, [item, open]);
@@ -512,7 +560,7 @@ function ExpenseItemDialog({
       setPaidAccountName("");
       return;
     }
-    if (!paidAccountName && balances[0]?.accountName) setPaidAccountName(balances[0].accountName);
+    if (paymentMode === "bank" && !paidAccountName && balances[0]?.accountName) setPaidAccountName(balances[0].accountName);
     setStatus(paidAmount >= parseMoney(nextValue) ? "pago" : "parcial");
   };
 
@@ -524,7 +572,7 @@ function ExpenseItemDialog({
       setStatus(item?.status || "pendente");
       return;
     }
-    if (!paidAccountName && balances[0]?.accountName) setPaidAccountName(balances[0].accountName);
+    if (paymentMode === "bank" && !paidAccountName && balances[0]?.accountName) setPaidAccountName(balances[0].accountName);
     setStatus(nextPaidAmount >= parseMoney(value) ? "pago" : "parcial");
   };
 
@@ -539,7 +587,7 @@ function ExpenseItemDialog({
       toast.error("Digite o nome da despesa");
       return;
     }
-    if ((item ? paymentNowAmount > 0 : paidAmount > 0) && !accountName) {
+    if ((item ? paymentNowAmount > 0 : paidAmount > 0) && paymentMode === "bank" && !accountName) {
       toast.error("Informe de qual banco saiu o pagamento");
       return;
     }
@@ -549,7 +597,8 @@ function ExpenseItemDialog({
       dueDate,
       value: value || "0.00",
       paidValue: paidAmount > 0 ? paidAmount.toFixed(2) : "0.00",
-      paidAccountName: accountName,
+      paidAccountName: paymentMode === "bank" ? accountName : "",
+      paymentMode,
       status: paidAmount <= 0 ? "pendente" : paidAmount >= parseMoney(value) ? "pago" : "parcial",
       priority,
     };
@@ -562,6 +611,7 @@ function ExpenseItemDialog({
         value: string;
         paidValue?: string;
         paidAccountName?: string | null;
+        paymentMode?: PaymentMode;
         status?: "pago" | "parcial" | "pendente";
       } = {
         id: item.id,
@@ -572,7 +622,8 @@ function ExpenseItemDialog({
 
       if (paymentNowAmount > 0) {
         updatePayload.paidValue = payload.paidValue;
-        updatePayload.paidAccountName = paidAmount > 0 ? (accountName || item.paidAccountName || null) : null;
+        updatePayload.paidAccountName = paidAmount > 0 && paymentMode === "bank" ? (accountName || item.paidAccountName || null) : null;
+        updatePayload.paymentMode = paymentMode;
         updatePayload.status = payload.status;
       }
 
@@ -663,12 +714,14 @@ function ExpenseItemDialog({
           <div className="rounded-lg border border-white/5 bg-black/20 p-3 sm:col-span-2">
             <div className="mb-2 flex items-center justify-between gap-3">
               <div>
-                <p className="text-[10px] font-mono uppercase tracking-widest text-primary">De onde vai debitar</p>
+                <p className="text-[10px] font-mono uppercase tracking-widest text-primary">Como foi pago</p>
                 <p className="text-xs text-muted-foreground">
                   {visiblePaymentAmount > 0
                     ? item
                       ? `${formatBrl(visiblePaymentAmount)} será somado ao pagamento atual.`
-                      : `${formatBrl(visiblePaymentAmount)} será descontado do banco escolhido.`
+                      : paymentMode === "bank"
+                        ? `${formatBrl(visiblePaymentAmount)} será descontado do banco escolhido.`
+                        : `${formatBrl(visiblePaymentAmount)} será marcado sem mexer no saldo bancário.`
                     : "Informe um valor pago para escolher o banco."}
                 </p>
               </div>
@@ -678,14 +731,31 @@ function ExpenseItemDialog({
                 </span>
               )}
             </div>
+            <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {PAYMENT_MODE_OPTIONS.map(option => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => {
+                    setPaymentMode(option.value);
+                    if (option.value !== "bank") setPaidAccountName("");
+                  }}
+                  disabled={visiblePaymentAmount <= 0}
+                  className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${paymentMode === option.value ? "border-primary bg-primary/10 text-primary" : "border-border bg-background/40 text-muted-foreground hover:text-foreground"}`}
+                >
+                  <span className="block font-semibold">{option.label}</span>
+                  <span className="text-[10px] opacity-80">{option.description}</span>
+                </button>
+              ))}
+            </div>
             <BankAccountPicker
               value={paidAccountName}
               onChange={setPaidAccountName}
               accounts={balances}
               label="Banco do pagamento"
-              placeholder={visiblePaymentAmount > 0 ? "Ex: Inter, C6, Caixa" : "Sem pagamento"}
-              disabled={visiblePaymentAmount <= 0}
-              helperText={visiblePaymentAmount > 0 ? "Esse é o banco que será debitado ao salvar a despesa." : undefined}
+              placeholder={visiblePaymentAmount > 0 && paymentMode === "bank" ? "Ex: Inter, C6, Caixa" : "Sem débito bancário"}
+              disabled={visiblePaymentAmount <= 0 || paymentMode !== "bank"}
+              helperText={visiblePaymentAmount > 0 && paymentMode === "bank" ? "Esse é o banco que será debitado ao salvar a despesa." : "Cartão e controle de orçamento não alteram o saldo bancário agora."}
             />
           </div>
         </div>

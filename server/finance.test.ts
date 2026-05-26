@@ -161,6 +161,36 @@ describe("finance - items router input validation", () => {
     const balances = await caller.balances.list({ monthId: month.id });
     expect(balances.find(balance => balance.accountName === "Banco Teste")?.balance).toBe("800.00");
   });
+
+  it("tracks card-paid expenses without debiting a bank balance", async () => {
+    const user = await db.createPasswordUser({
+      username: `card-expense-user-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      name: "Card Expense User",
+      passwordHash: "test-hash",
+      role: "user",
+    });
+    const [organization] = await db.getOrganizationsForUser(user.id);
+    const ctx: TrpcContext = {
+      user,
+      activeOrganizationId: organization!.id,
+      req: { protocol: "https", headers: {} } as TrpcContext["req"],
+      res: { clearCookie: () => {} } as TrpcContext["res"],
+    };
+    const caller = appRouter.createCaller(ctx);
+    const month = await caller.months.create({ label: "2099-07" });
+    await caller.balances.update({ monthId: month.id, accountName: "Banco Teste", balance: "1000.00" });
+    const card = await caller.cards.create({ monthId: month.id, name: "Casa" });
+    const item = await caller.items.create({ cardId: card.id, name: "Combustível", value: "1000.00" });
+
+    await caller.items.update({ id: item.id, status: "parcial", paidValue: "200.00", paymentMode: "card", paidAccountName: null });
+    const cards = await caller.cards.list({ monthId: month.id });
+    const fuel = cards.flatMap(existingCard => existingCard.items).find(existing => existing.id === item.id);
+    expect(fuel?.paidValue).toBe("200.00");
+    expect(fuel?.paymentMode).toBe("card");
+
+    const balances = await caller.balances.list({ monthId: month.id });
+    expect(balances.find(balance => balance.accountName === "Banco Teste")?.balance).toBe("1000.00");
+  });
 });
 
 describe("finance - income router input validation", () => {

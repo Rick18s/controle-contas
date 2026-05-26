@@ -210,6 +210,10 @@ function formatMoneyValue(value: number) {
   return value.toFixed(2);
 }
 
+function normalizePaymentMode(value: string | null | undefined): "bank" | "card" | "budget" {
+  return value === "card" || value === "budget" ? value : "bank";
+}
+
 function summarizeReceiptAccounts(
   transactions: Awaited<ReturnType<typeof db.listBankTransactionsBySource>>,
   fallback?: { accountName?: string | null; amount?: number }
@@ -745,6 +749,7 @@ export const appRouter = router({
         value: z.string().optional(),
         paidValue: z.string().optional(),
         paidAccountName: z.string().optional().nullable(),
+        paymentMode: z.enum(["bank", "card", "budget"]).optional(),
         status: z.enum(["pago", "parcial", "pendente"]).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
@@ -761,30 +766,35 @@ export const appRouter = router({
         value: z.string().optional(),
         paidValue: z.string().optional(),
         paidAccountName: z.string().optional().nullable(),
+        paymentMode: z.enum(["bank", "card", "budget"]).optional(),
         status: z.enum(["pago", "parcial", "pendente"]).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         await requireCanEdit(ctx);
         const current = await requireItemInActiveOrganization(ctx, input.id);
         const { id, ...data } = input;
-        const paymentTouched = data.paidValue !== undefined || data.paidAccountName !== undefined || data.status !== undefined;
+        const paymentTouched = data.paidValue !== undefined || data.paidAccountName !== undefined || data.paymentMode !== undefined || data.status !== undefined;
 
         if (paymentTouched) {
           const nextStatus = data.status ?? current.status;
           const nextPaidValue = nextStatus === "pendente" && data.paidValue === undefined
             ? 0
             : parseMoneyValue(data.paidValue ?? current.paidValue);
-          const nextAccount = nextStatus === "pendente"
+          const nextPaymentMode = nextStatus === "pendente" || nextPaidValue <= 0
+            ? "bank"
+            : data.paymentMode ?? normalizePaymentMode(current.paymentMode);
+          const nextAccount = nextStatus === "pendente" || nextPaymentMode !== "bank"
             ? null
             : (data.paidAccountName !== undefined ? data.paidAccountName : current.paidAccountName)?.trim() || null;
 
-          if (nextPaidValue > 0 && !nextAccount) {
+          if (nextPaidValue > 0 && nextPaymentMode === "bank" && !nextAccount) {
             throw new Error("Escolha a conta bancária usada para pagar");
           }
 
           const card = await db.getCardById(current.cardId);
           if (card) {
-            const previousPaidValue = current.paidAccountName ? parseMoneyValue(current.paidValue) : 0;
+            const previousPaymentMode = normalizePaymentMode(current.paymentMode);
+            const previousPaidValue = previousPaymentMode === "bank" && current.paidAccountName ? parseMoneyValue(current.paidValue) : 0;
             if (previousPaidValue > 0 && current.paidAccountName) {
               await adjustBankBalance(card.monthId, current.paidAccountName, previousPaidValue, {
                 userId: ctx.user.id,
@@ -793,7 +803,7 @@ export const appRouter = router({
                 sourceId: current.id,
               });
             }
-            if (nextPaidValue > 0 && nextAccount) {
+            if (nextPaidValue > 0 && nextPaymentMode === "bank" && nextAccount) {
               await adjustBankBalance(card.monthId, nextAccount, -nextPaidValue, {
                 userId: ctx.user.id,
                 description: `Pagamento: ${current.name}`,
@@ -805,6 +815,7 @@ export const appRouter = router({
 
           data.paidValue = formatMoneyValue(nextPaidValue);
           data.paidAccountName = nextPaidValue > 0 ? nextAccount : null;
+          data.paymentMode = nextPaidValue > 0 ? nextPaymentMode : "bank";
         }
 
         await db.updateItem(id, data);
@@ -815,7 +826,7 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         await requireCanEdit(ctx);
         const item = await requireItemInActiveOrganization(ctx, input.id);
-        if (item.paidAccountName && parseMoneyValue(item.paidValue) > 0) {
+        if ((item.paymentMode ?? "bank") === "bank" && item.paidAccountName && parseMoneyValue(item.paidValue) > 0) {
           const card = await db.getCardById(item.cardId);
           if (card) await adjustBankBalance(card.monthId, item.paidAccountName, parseMoneyValue(item.paidValue), {
             userId: ctx.user.id,
@@ -1155,6 +1166,7 @@ export const appRouter = router({
               value: formatMoneyValue(amount),
               paidValue: formatMoneyValue(amount),
               paidAccountName: accountName,
+              paymentMode: "bank",
               status: "pago",
             });
             await adjustBankBalance(input.monthId, accountName, -amount, {
@@ -1299,6 +1311,7 @@ Sua tarefa:
             value: formatMoneyValue(nextTotalValue),
             paidValue: formatMoneyValue(nextPaidValue),
             paidAccountName: accountName,
+            paymentMode: "bank",
             status: nextStatus,
           });
 
@@ -1340,6 +1353,7 @@ Sua tarefa:
           value: result.value.toFixed(2),
           paidValue: result.value.toFixed(2),
           paidAccountName: input.accountName?.trim() || null,
+          paymentMode: "bank",
           status: "pago",
         });
         return { type: "expense", id: created.id, cardId, name: result.name, value: result.value };
