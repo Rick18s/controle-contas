@@ -214,6 +214,60 @@ function normalizePaymentMode(value: string | null | undefined): "bank" | "card"
   return value === "card" || value === "budget" ? value : "bank";
 }
 
+async function applyExpensePaymentBalanceChange(params: {
+  monthId: number;
+  userId: number;
+  current: NonNullable<Awaited<ReturnType<typeof db.getItemById>>>;
+  data: {
+    paidValue?: string;
+    paidAccountName?: string | null;
+    paymentMode?: "bank" | "card" | "budget";
+    status?: "pago" | "parcial" | "pendente";
+  };
+}) {
+  const { monthId, userId, current, data } = params;
+  const paymentTouched = data.paidValue !== undefined || data.paidAccountName !== undefined || data.paymentMode !== undefined || data.status !== undefined;
+  if (!paymentTouched) return;
+
+  const nextStatus = data.status ?? current.status;
+  const nextPaidValue = nextStatus === "pendente" && data.paidValue === undefined
+    ? 0
+    : parseMoneyValue(data.paidValue ?? current.paidValue);
+  const nextPaymentMode = nextStatus === "pendente" || nextPaidValue <= 0
+    ? "bank"
+    : data.paymentMode ?? normalizePaymentMode(current.paymentMode);
+  const nextAccount = nextStatus === "pendente" || nextPaymentMode !== "bank"
+    ? null
+    : (data.paidAccountName !== undefined ? data.paidAccountName : current.paidAccountName)?.trim() || null;
+
+  if (nextPaidValue > 0 && nextPaymentMode === "bank" && !nextAccount) {
+    throw new Error("Escolha a conta bancária usada para pagar");
+  }
+
+  const previousPaymentMode = normalizePaymentMode(current.paymentMode);
+  const previousPaidValue = previousPaymentMode === "bank" && current.paidAccountName ? parseMoneyValue(current.paidValue) : 0;
+  if (previousPaidValue > 0 && current.paidAccountName) {
+    await adjustBankBalance(monthId, current.paidAccountName, previousPaidValue, {
+      userId,
+      description: `Pagamento desfeito: ${current.name}`,
+      sourceType: "expense_item",
+      sourceId: current.id,
+    });
+  }
+  if (nextPaidValue > 0 && nextPaymentMode === "bank" && nextAccount) {
+    await adjustBankBalance(monthId, nextAccount, -nextPaidValue, {
+      userId,
+      description: `Pagamento: ${current.name}`,
+      sourceType: "expense_item",
+      sourceId: current.id,
+    });
+  }
+
+  data.paidValue = formatMoneyValue(nextPaidValue);
+  data.paidAccountName = nextPaidValue > 0 ? nextAccount : null;
+  data.paymentMode = nextPaidValue > 0 ? nextPaymentMode : "bank";
+}
+
 function summarizeReceiptAccounts(
   transactions: Awaited<ReturnType<typeof db.listBankTransactionsBySource>>,
   fallback?: { accountName?: string | null; amount?: number }
@@ -773,52 +827,36 @@ export const appRouter = router({
         await requireCanEdit(ctx);
         const current = await requireItemInActiveOrganization(ctx, input.id);
         const { id, ...data } = input;
-        const paymentTouched = data.paidValue !== undefined || data.paidAccountName !== undefined || data.paymentMode !== undefined || data.status !== undefined;
-
-        if (paymentTouched) {
-          const nextStatus = data.status ?? current.status;
-          const nextPaidValue = nextStatus === "pendente" && data.paidValue === undefined
-            ? 0
-            : parseMoneyValue(data.paidValue ?? current.paidValue);
-          const nextPaymentMode = nextStatus === "pendente" || nextPaidValue <= 0
-            ? "bank"
-            : data.paymentMode ?? normalizePaymentMode(current.paymentMode);
-          const nextAccount = nextStatus === "pendente" || nextPaymentMode !== "bank"
-            ? null
-            : (data.paidAccountName !== undefined ? data.paidAccountName : current.paidAccountName)?.trim() || null;
-
-          if (nextPaidValue > 0 && nextPaymentMode === "bank" && !nextAccount) {
-            throw new Error("Escolha a conta bancária usada para pagar");
-          }
-
-          const card = await db.getCardById(current.cardId);
-          if (card) {
-            const previousPaymentMode = normalizePaymentMode(current.paymentMode);
-            const previousPaidValue = previousPaymentMode === "bank" && current.paidAccountName ? parseMoneyValue(current.paidValue) : 0;
-            if (previousPaidValue > 0 && current.paidAccountName) {
-              await adjustBankBalance(card.monthId, current.paidAccountName, previousPaidValue, {
-                userId: ctx.user.id,
-                description: `Pagamento desfeito: ${current.name}`,
-                sourceType: "expense_item",
-                sourceId: current.id,
-              });
-            }
-            if (nextPaidValue > 0 && nextPaymentMode === "bank" && nextAccount) {
-              await adjustBankBalance(card.monthId, nextAccount, -nextPaidValue, {
-                userId: ctx.user.id,
-                description: `Pagamento: ${current.name}`,
-                sourceType: "expense_item",
-                sourceId: current.id,
-              });
-            }
-          }
-
-          data.paidValue = formatMoneyValue(nextPaidValue);
-          data.paidAccountName = nextPaidValue > 0 ? nextAccount : null;
-          data.paymentMode = nextPaidValue > 0 ? nextPaymentMode : "bank";
+        const card = await db.getCardById(current.cardId);
+        if (card) {
+          await db.createExpenseItemSnapshot(current, { monthId: card.monthId, userId: ctx.user.id, reason: "update" });
+          await applyExpensePaymentBalanceChange({ monthId: card.monthId, userId: ctx.user.id, current, data });
         }
 
         await db.updateItem(id, data);
+        return { success: true };
+      }),
+    restorePrevious: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await requireCanEdit(ctx);
+        const current = await requireItemInActiveOrganization(ctx, input.id);
+        const card = await db.getCardById(current.cardId);
+        if (!card) throw new Error("Card não encontrado");
+        const snapshot = await db.getLatestExpenseItemSnapshot(input.id);
+        if (!snapshot) throw new Error("Nenhuma alteração anterior encontrada para restaurar");
+        await db.createExpenseItemSnapshot(current, { monthId: card.monthId, userId: ctx.user.id, reason: "restore" });
+        const data = {
+          name: snapshot.name,
+          dueDate: snapshot.dueDate || "",
+          value: snapshot.value,
+          paidValue: snapshot.paidValue,
+          paidAccountName: snapshot.paidAccountName,
+          paymentMode: normalizePaymentMode(snapshot.paymentMode),
+          status: snapshot.status,
+        };
+        await applyExpensePaymentBalanceChange({ monthId: card.monthId, userId: ctx.user.id, current, data });
+        await db.updateItem(input.id, data);
         return { success: true };
       }),
     delete: protectedProcedure
@@ -826,8 +864,9 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         await requireCanEdit(ctx);
         const item = await requireItemInActiveOrganization(ctx, input.id);
+        const card = await db.getCardById(item.cardId);
+        if (card) await db.createExpenseItemSnapshot(item, { monthId: card.monthId, userId: ctx.user.id, reason: "delete" });
         if ((item.paymentMode ?? "bank") === "bank" && item.paidAccountName && parseMoneyValue(item.paidValue) > 0) {
-          const card = await db.getCardById(item.cardId);
           if (card) await adjustBankBalance(card.monthId, item.paidAccountName, parseMoneyValue(item.paidValue), {
             userId: ctx.user.id,
             description: `Despesa removida: ${item.name}`,

@@ -191,6 +191,40 @@ describe("finance - items router input validation", () => {
     const balances = await caller.balances.list({ monthId: month.id });
     expect(balances.find(balance => balance.accountName === "Banco Teste")?.balance).toBe("1000.00");
   });
+
+  it("restores the previous expense state from a saved snapshot", async () => {
+    const user = await db.createPasswordUser({
+      username: `restore-expense-user-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      name: "Restore Expense User",
+      passwordHash: "test-hash",
+      role: "user",
+    });
+    const [organization] = await db.getOrganizationsForUser(user.id);
+    const ctx: TrpcContext = {
+      user,
+      activeOrganizationId: organization!.id,
+      req: { protocol: "https", headers: {} } as TrpcContext["req"],
+      res: { clearCookie: () => {} } as TrpcContext["res"],
+    };
+    const caller = appRouter.createCaller(ctx);
+    const month = await caller.months.create({ label: "2099-08" });
+    await caller.balances.update({ monthId: month.id, accountName: "Banco Teste", balance: "1000.00" });
+    const card = await caller.cards.create({ monthId: month.id, name: "Distribuição" });
+    const item = await caller.items.create({ cardId: card.id, name: "Distribuição Pedro", value: "12500.00" });
+
+    await caller.items.update({ id: item.id, status: "parcial", paidValue: "3230.00", paidAccountName: "Banco Teste", paymentMode: "bank" });
+    await caller.items.update({ id: item.id, status: "pago", paidValue: "1500.00", value: "1500.00", paidAccountName: "Banco Teste", paymentMode: "bank" });
+    await caller.items.restorePrevious({ id: item.id });
+
+    const cards = await caller.cards.list({ monthId: month.id });
+    const restored = cards.flatMap(existingCard => existingCard.items).find(existing => existing.id === item.id);
+    expect(restored?.value).toBe("12500.00");
+    expect(restored?.paidValue).toBe("3230.00");
+    expect(restored?.status).toBe("parcial");
+
+    const balances = await caller.balances.list({ monthId: month.id });
+    expect(balances.find(balance => balance.accountName === "Banco Teste")?.balance).toBe("-2230.00");
+  });
 });
 
 describe("finance - income router input validation", () => {

@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/neon-http";
 import { neon } from "@neondatabase/serverless";
 import fs from "fs";
 import path from "path";
-import { InsertUser, PasswordResetToken, User, users, passwordResetTokens, organizations, organizationMembers, months, expenseCards, expenseItems, incomeEntries, bankBalances, bankTransactions, goals } from "../drizzle/schema";
+import { ExpenseItem, ExpenseItemSnapshot, InsertUser, PasswordResetToken, User, users, passwordResetTokens, organizations, organizationMembers, months, expenseCards, expenseItems, expenseItemSnapshots, incomeEntries, bankBalances, bankTransactions, goals } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -374,6 +374,7 @@ type MemoryBankTransaction = {
 };
 type MemoryGoal = { id: number; organizationId: number; name: string; term: "short" | "medium" | "long"; targetValue: string; savedValue: string; sortOrder: number | null };
 type MemoryPasswordResetToken = PasswordResetToken;
+type MemoryExpenseItemSnapshot = ExpenseItemSnapshot;
 
 let memoryNextId = 1;
 const memoryMonths: MemoryMonth[] = [];
@@ -387,6 +388,7 @@ const memoryPasswordResetTokens: MemoryPasswordResetToken[] = [];
 const memoryOrganizations: MemoryOrganization[] = [];
 const memoryOrganizationMembers: MemoryOrganizationMember[] = [];
 const memoryGoals: MemoryGoal[] = [];
+const memoryExpenseItemSnapshots: MemoryExpenseItemSnapshot[] = [];
 
 type MemorySnapshot = {
   memoryNextId?: number;
@@ -401,6 +403,7 @@ type MemorySnapshot = {
   balances?: MemoryBalance[];
   bankTransactions?: MemoryBankTransaction[];
   goals?: MemoryGoal[];
+  expenseItemSnapshots?: MemoryExpenseItemSnapshot[];
 };
 
 const isTestRuntime = process.env.VITEST === "true" || process.env.NODE_ENV === "test";
@@ -461,6 +464,10 @@ function ensureMemoryLoaded() {
       createdAt: toDate(transaction.createdAt),
     })));
     replaceMemory(memoryGoals, snapshot.goals);
+    replaceMemory(memoryExpenseItemSnapshots, (snapshot.expenseItemSnapshots ?? []).map(snapshotEntry => ({
+      ...snapshotEntry,
+      createdAt: toDate(snapshotEntry.createdAt),
+    })));
   } catch (error) {
     console.error("[Database] Failed to load local data snapshot:", error);
   }
@@ -482,6 +489,7 @@ function persistMemoryData() {
     balances: memoryBalances,
     bankTransactions: memoryBankTransactions,
     goals: memoryGoals,
+    expenseItemSnapshots: memoryExpenseItemSnapshots,
   };
   fs.mkdirSync(path.dirname(memoryDataFile), { recursive: true });
   const tempFile = `${memoryDataFile}.${process.pid}.${Date.now()}.tmp`;
@@ -925,6 +933,46 @@ export async function updateItem(itemId: number, data: { name?: string; dueDate?
     return;
   }
   await db.update(expenseItems).set(data).where(eq(expenseItems.id, itemId));
+}
+
+export async function createExpenseItemSnapshot(item: ExpenseItem | MemoryItem, data: { monthId: number; userId?: number | null; reason?: string }) {
+  const values = {
+    itemId: item.id,
+    cardId: item.cardId,
+    monthId: data.monthId,
+    userId: data.userId ?? null,
+    name: item.name,
+    dueDate: item.dueDate || "",
+    value: item.value,
+    paidValue: item.paidValue,
+    paidAccountName: item.paidAccountName ?? null,
+    paymentMode: normalizePaymentMode(item.paymentMode),
+    status: item.status,
+    reason: data.reason || "update",
+  };
+  const db = await getDb();
+  if (!db) {
+    const snapshot = { id: memoryNextId++, ...values, createdAt: new Date() };
+    memoryExpenseItemSnapshots.push(snapshot);
+    persistMemoryData();
+    return { id: snapshot.id };
+  }
+  const result = await db.insert(expenseItemSnapshots).values(values).returning({ id: expenseItemSnapshots.id });
+  return { id: result[0].id };
+}
+
+export async function getLatestExpenseItemSnapshot(itemId: number) {
+  const db = await getDb();
+  if (!db) {
+    return memoryExpenseItemSnapshots
+      .filter(snapshot => snapshot.itemId === itemId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.id - a.id)[0];
+  }
+  const rows = await db.select()
+    .from(expenseItemSnapshots)
+    .where(eq(expenseItemSnapshots.itemId, itemId))
+    .orderBy(asc(expenseItemSnapshots.id));
+  return rows[rows.length - 1];
 }
 
 export async function deleteItem(itemId: number) {

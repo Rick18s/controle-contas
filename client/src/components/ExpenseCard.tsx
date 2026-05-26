@@ -1,6 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Edit2 } from "lucide-react";
+import { Plus, Trash2, Edit2, RotateCcw } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { formatBrl, getPaidAmount, getRemainingAmount, parseMoney } from "@/lib/money";
@@ -538,6 +538,13 @@ function ExpenseItemDialog({
     },
     onError: (error) => toast.error(error.message || "Não foi possível salvar a despesa"),
   });
+  const restorePrevious = trpc.items.restorePrevious.useMutation({
+    onSuccess: () => {
+      toast.success("Alteração anterior restaurada");
+      onUpdated?.();
+    },
+    onError: (error) => toast.error(error.message || "Não encontrei uma alteração anterior para restaurar"),
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -780,8 +787,19 @@ function ExpenseItemDialog({
         </div>
 
         <DialogFooter className="gap-2">
+          {item && (
+            <Button
+              variant="ghost"
+              onClick={() => restorePrevious.mutate({ id: item.id })}
+              disabled={restorePrevious.isPending || updateItem.isPending}
+              className="mr-auto gap-1 text-blue-200 text-xs hover:text-blue-100"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Restaurar anterior
+            </Button>
+          )}
           <Button variant="ghost" onClick={onClose} className="text-gray-400 text-xs">Cancelar</Button>
-          <Button onClick={() => { void handleSubmit(); }} disabled={isSaving || updateItem.isPending} className="text-xs">
+          <Button onClick={() => { void handleSubmit(); }} disabled={isSaving || updateItem.isPending || restorePrevious.isPending} className="text-xs">
             {isSaving || updateItem.isPending ? "Salvando..." : "Salvar despesa"}
           </Button>
         </DialogFooter>

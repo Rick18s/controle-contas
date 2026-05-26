@@ -92,6 +92,25 @@ export const expenseItems = pgTable("expense_items", {
 
 export type ExpenseItem = typeof expenseItems.$inferSelect;
 
+export const expenseItemSnapshots = pgTable("expense_item_snapshots", {
+  id: serial("id").primaryKey(),
+  itemId: integer("itemId").notNull(),
+  cardId: integer("cardId").notNull(),
+  monthId: integer("monthId").notNull(),
+  userId: integer("userId"),
+  name: varchar("name", { length: 200 }).notNull(),
+  dueDate: varchar("dueDate", { length: 100 }).default(""),
+  value: decimal("value", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  paidValue: decimal("paidValue", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  paidAccountName: varchar("paidAccountName", { length: 100 }),
+  paymentMode: varchar("paymentMode", { length: 20 }).default("bank").notNull(),
+  status: statusEnum("status").default("pendente").notNull(),
+  reason: varchar("reason", { length: 80 }).default("update").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ExpenseItemSnapshot = typeof expenseItemSnapshots.$inferSelect;
+
 // Income entries per month
 export const incomeEntries = pgTable("income_entries", {
   id: serial("id").primaryKey(),
