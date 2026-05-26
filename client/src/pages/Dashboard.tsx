@@ -3,7 +3,23 @@ import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, ChevronLeft, ChevronRight, LogOut, CalendarPlus, Copy, Download, ClipboardPaste } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+  LogOut,
+  CalendarPlus,
+  Copy,
+  Download,
+  ClipboardPaste,
+  LayoutDashboard,
+  ListChecks,
+  Sparkles,
+  ReceiptText,
+  Wallet,
+  Landmark,
+} from "lucide-react";
 import { toast } from "sonner";
 import ExpenseCard from "@/components/ExpenseCard";
 import AccountAccessBar from "@/components/AccountAccessBar";
@@ -15,7 +31,6 @@ import { CardCategoryIcon } from "@/components/CardCategoryIcon";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import OnboardingTutorial from "@/components/OnboardingTutorial";
 import BrandLogo from "@/components/BrandLogo";
-import { Sparkles } from "lucide-react";
 
 const SummaryDashboard = lazy(() => import("@/components/SummaryDashboard"));
 const CashFlowTimeline = lazy(() => import("@/components/CashFlowTimeline"));
@@ -29,6 +44,27 @@ const CurrencyCalculator = lazy(() => import("@/components/CurrencyCalculator"))
 const BankStatementPanel = lazy(() => import("@/components/BankStatementPanel"));
 const AdminUsersPanel = lazy(() => import("@/components/AdminUsersPanel"));
 const QuickAddDialog = lazy(() => import("@/components/QuickAddDialog"));
+
+const dashboardTabs = [
+  { value: "overview", label: "Visão Geral" },
+  { value: "priorities", label: "Prioridades" },
+  { value: "simulator", label: "Simulador" },
+  { value: "expenses", label: "Despesas" },
+  { value: "income", label: "Receitas" },
+  { value: "import", label: "Importar" },
+  { value: "goals", label: "Metas" },
+  { value: "analytics", label: "Análises" },
+  { value: "balances", label: "Saldos" },
+  { value: "statement", label: "Extrato" },
+] as const;
+
+const mobileTabs = [
+  { value: "overview", label: "Início", icon: LayoutDashboard },
+  { value: "priorities", label: "Pagar", icon: ListChecks },
+  { value: "expenses", label: "Contas", icon: ReceiptText },
+  { value: "income", label: "Entradas", icon: Wallet },
+  { value: "balances", label: "Saldos", icon: Landmark },
+] as const;
 
 function PanelFallback() {
   return (
@@ -330,23 +366,23 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-border/30 sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex flex-wrap items-center justify-between gap-2 py-2 sm:h-14 sm:flex-nowrap sm:py-0">
-          <BrandLogo href="/dashboard" size="sm" className="shrink-0" />
+      <header className="sticky top-0 z-50 border-b border-border/30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/75">
+        <div className="container flex flex-wrap items-center justify-between gap-2 py-3 sm:h-14 sm:flex-nowrap sm:py-0">
+          <BrandLogo href="/dashboard" size="sm" className="max-w-[170px] shrink-0 sm:max-w-none" />
 
           {/* Month Navigation */}
-          <div className="order-3 flex w-full items-center justify-center gap-1 overflow-x-auto pb-1 sm:order-none sm:w-auto sm:justify-start sm:overflow-visible sm:pb-0">
+          <div className="order-3 flex w-full items-center justify-between gap-1 overflow-x-auto rounded-2xl border border-white/5 bg-zinc-900/80 p-1 sm:order-none sm:w-auto sm:justify-start sm:overflow-visible sm:border-0 sm:bg-transparent sm:p-0">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => navigateMonth(-1)}
               disabled={!selectedMonthId || months.findIndex(m => m.id === selectedMonthId) === 0}
-              className="text-gray-400 hover:text-white h-8 w-8 p-0"
+              className="h-10 w-10 shrink-0 p-0 text-gray-400 hover:text-white sm:h-8 sm:w-8"
             >
               <ChevronLeft className="w-4 h-4" />
             </Button>
 
-            <div className="min-w-[96px] rounded-md border border-border px-2 py-1 text-center font-mono text-xs text-primary sm:min-w-[110px] sm:px-3 sm:text-sm" style={{ background: 'var(--bg-card)' }}>
+            <div className="min-w-[118px] flex-1 rounded-xl border border-border px-3 py-2 text-center text-sm font-semibold text-primary sm:min-w-[110px] sm:flex-none sm:rounded-md sm:px-3 sm:py-1 sm:text-sm" style={{ background: 'var(--bg-card)' }}>
               {selectedMonth ? formatMonthLabel(selectedMonth.label) : "—"}
             </div>
 
@@ -355,7 +391,7 @@ export default function Dashboard() {
               size="sm"
               onClick={() => navigateMonth(1)}
               disabled={!selectedMonthId || months.findIndex(m => m.id === selectedMonthId) === months.length - 1}
-              className="text-gray-400 hover:text-white h-8 w-8 p-0"
+              className="h-10 w-10 shrink-0 p-0 text-gray-400 hover:text-white sm:h-8 sm:w-8"
             >
               <ChevronRight className="w-4 h-4" />
             </Button>
@@ -364,7 +400,7 @@ export default function Dashboard() {
               variant="ghost"
               size="sm"
               onClick={() => setShowMonthPicker(true)}
-              className="text-green-400 hover:text-green-300 ml-1 h-8 w-8 p-0"
+              className="ml-1 h-10 w-10 shrink-0 p-0 text-green-400 hover:text-green-300 sm:h-8 sm:w-8"
               title="Criar novo mês"
             >
               <CalendarPlus className="w-4 h-4" />
@@ -376,7 +412,7 @@ export default function Dashboard() {
                 size="sm"
                 onClick={openCopyDialog}
                 disabled={copyMonth.isPending}
-                className="text-primary hover:text-primary/80 h-8 w-8 p-0"
+                className="h-10 w-10 shrink-0 p-0 text-primary hover:text-primary/80 sm:h-8 sm:w-8"
                 title="Copiar mês atual para outro mês"
               >
                 <Copy className="w-3.5 h-3.5" />
@@ -388,7 +424,7 @@ export default function Dashboard() {
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowImportDialog(true)}
-                className="text-purple-400 hover:text-purple-300 h-8 w-8 p-0"
+                className="h-10 w-10 shrink-0 p-0 text-purple-400 hover:text-purple-300 sm:h-8 sm:w-8"
                 title="Colar/importar informações no mês atual"
               >
                 <ClipboardPaste className="w-3.5 h-3.5" />
@@ -400,7 +436,7 @@ export default function Dashboard() {
                 variant="ghost"
                 size="sm"
                 onClick={handleExportSpreadsheet}
-                className="text-primary hover:text-primary/80 h-8 w-8 p-0"
+                className="h-10 w-10 shrink-0 p-0 text-primary hover:text-primary/80 sm:h-8 sm:w-8"
                 title="Exportar mês para planilha CSV"
               >
                 <Download className="w-3.5 h-3.5" />
@@ -412,7 +448,7 @@ export default function Dashboard() {
                 variant="ghost"
                 size="sm"
                 onClick={() => { void handleDeleteMonth(); }}
-                className="text-red-400 hover:text-red-300 h-8 w-8 p-0"
+                className="h-10 w-10 shrink-0 p-0 text-red-400 hover:text-red-300 sm:h-8 sm:w-8"
                 title="Remover mês"
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -423,7 +459,7 @@ export default function Dashboard() {
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <OnboardingTutorial />
             <span className="text-xs font-mono text-gray-500 hidden md:block">{user?.name}</span>
-            <Button variant="ghost" size="sm" onClick={logout} className="text-gray-400 hover:text-red-400 h-8 w-8 p-0">
+            <Button variant="ghost" size="sm" onClick={logout} className="h-10 w-10 p-0 text-gray-400 hover:text-red-400 sm:h-8 sm:w-8">
               <LogOut className="w-4 h-4" />
             </Button>
           </div>
@@ -431,7 +467,7 @@ export default function Dashboard() {
       </header>
 
       {/* Main Content */}
-      <main className="container py-4 space-y-4 sm:py-6 sm:space-y-6">
+      <main className="container space-y-4 py-4 pb-28 sm:space-y-6 sm:py-6 sm:pb-6">
         {!selectedMonthId ? (
           <div className="flex flex-col items-center justify-center py-20 space-y-6">
             <p className="text-gray-500 font-mono text-sm">Nenhum mês selecionado</p>
@@ -443,21 +479,26 @@ export default function Dashboard() {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-4 sm:space-y-6">
             <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
               <AccountAccessBar isAdmin={canManageOrganization} onOrganizationChange={() => setSelectedMonthId(null)} />
-              <TabsList className="flex h-auto w-full overflow-x-auto whitespace-nowrap justify-start sm:w-auto pb-1">
-                <TabsTrigger value="overview" className="text-xs sm:text-sm py-2 px-3">Visão Geral</TabsTrigger>
-                <TabsTrigger value="priorities" className="text-xs sm:text-sm py-2 px-3">Prioridades</TabsTrigger>
-                <TabsTrigger value="simulator" className="text-xs sm:text-sm py-2 px-3">Simulador</TabsTrigger>
-                <TabsTrigger value="expenses" className="text-xs sm:text-sm py-2 px-3">Despesas</TabsTrigger>
-                <TabsTrigger value="income" className="text-xs sm:text-sm py-2 px-3">Receitas</TabsTrigger>
-                <TabsTrigger value="import" className="text-xs sm:text-sm py-2 px-3">Importar</TabsTrigger>
-                <TabsTrigger value="goals" className="text-xs sm:text-sm py-2 px-3">Metas</TabsTrigger>
-                <TabsTrigger value="analytics" className="text-xs sm:text-sm py-2 px-3">Análises</TabsTrigger>
-                <TabsTrigger value="balances" className="text-xs sm:text-sm py-2 px-3">Saldos</TabsTrigger>
-                <TabsTrigger value="statement" className="text-xs sm:text-sm py-2 px-3">Extrato</TabsTrigger>
+              <TabsList className="hidden h-auto w-full overflow-x-auto whitespace-nowrap justify-start pb-1 sm:flex sm:w-auto">
+                {dashboardTabs.map(tab => (
+                  <TabsTrigger key={tab.value} value={tab.value} className="px-3 py-2 text-xs sm:text-sm">
+                    {tab.label}
+                  </TabsTrigger>
+                ))}
                 {canManageOrganization && (
                   <TabsTrigger value="admin" className="text-xs sm:text-sm py-2 px-3">Admin</TabsTrigger>
                 )}
               </TabsList>
+              <select
+                value={activeTab}
+                onChange={(event) => setActiveTab(event.target.value)}
+                className="h-12 rounded-2xl border border-white/10 bg-zinc-900 px-4 text-sm font-semibold text-white outline-none focus:border-primary sm:hidden"
+              >
+                {dashboardTabs.map(tab => (
+                  <option key={tab.value} value={tab.value}>{tab.label}</option>
+                ))}
+                {canManageOrganization && <option value="admin">Admin</option>}
+              </select>
             </div>
 
             <Suspense fallback={<PanelFallback />}>
@@ -525,7 +566,7 @@ export default function Dashboard() {
       />
 
       <Dialog open={showCopyDialog} onOpenChange={setShowCopyDialog}>
-        <DialogContent className="bg-card text-card-foreground border border-border sm:max-w-md">
+        <DialogContent className="w-[calc(100vw-1rem)] rounded-3xl border border-border bg-card text-card-foreground sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-primary font-mono text-sm uppercase tracking-widest">Copiar mês</DialogTitle>
           </DialogHeader>
@@ -569,7 +610,7 @@ export default function Dashboard() {
       </Dialog>
 
       <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
-        <DialogContent className="bg-card text-card-foreground border border-border max-w-2xl">
+        <DialogContent className="w-[calc(100vw-1rem)] rounded-3xl border border-border bg-card text-card-foreground sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="text-primary font-mono text-sm uppercase tracking-widest">
               Colar informações do mês
@@ -581,7 +622,7 @@ export default function Dashboard() {
               value={importText}
               onChange={(event) => setImportText(event.target.value)}
               placeholder={"Casa:\nAluguel: 700\nInternet: 100 - 15/05\n\nEntradas previstas:\nCliente: 1000"}
-              className="min-h-[320px] bg-background/50 border-border text-sm text-white font-mono focus:border-cyan-400"
+              className="min-h-[260px] bg-background/50 border-border text-sm text-white font-mono focus:border-cyan-400 sm:min-h-[320px]"
             />
             <label className="flex items-center gap-2 text-xs font-mono text-gray-400">
               <input
@@ -628,11 +669,30 @@ export default function Dashboard() {
           )}
           <Button
             onClick={() => setShowQuickAddDialog(true)}
-            className="fixed bottom-4 right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-blue-600 p-0 text-white shadow-2xl shadow-purple-500/30 transition-transform hover:scale-105 hover:shadow-purple-500/50 active:scale-95 sm:bottom-6 sm:right-6 sm:h-14 sm:w-14"
+            className="fixed bottom-[5.75rem] right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-blue-600 p-0 text-white shadow-2xl shadow-purple-500/30 transition-transform hover:scale-105 hover:shadow-purple-500/50 active:scale-95 sm:bottom-6 sm:right-6 sm:h-14 sm:w-14"
             title="Adição Inteligente"
           >
             <Sparkles className="h-5 w-5 sm:h-6 sm:w-6" />
           </Button>
+          <nav className="pb-safe fixed inset-x-3 bottom-0 z-40 rounded-t-3xl border border-white/10 border-b-0 bg-zinc-950/95 px-2 pt-2 shadow-2xl shadow-black/50 backdrop-blur sm:hidden">
+            <div className="grid grid-cols-5 gap-1">
+              {mobileTabs.map(item => {
+                const Icon = item.icon;
+                const selected = activeTab === item.value;
+                return (
+                  <button
+                    key={item.value}
+                    type="button"
+                    onClick={() => setActiveTab(item.value)}
+                    className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-[10px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/60 ${selected ? "bg-primary/15 text-primary" : "text-zinc-500 hover:text-white"}`}
+                  >
+                    <Icon className="h-5 w-5" />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </nav>
         </>
       )}
     </div>
@@ -668,20 +728,20 @@ function ExpenseCardsSection({ monthId }: { monthId: number }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-mono uppercase tracking-widest text-primary">Despesas do Mês</h2>
-        <Button onClick={() => setShowNewCardDialog(true)} size="sm" variant="ghost" className="text-primary hover:text-primary/80 gap-1 text-xs">
+        <Button onClick={() => setShowNewCardDialog(true)} size="sm" variant="ghost" className="h-10 shrink-0 gap-1 rounded-2xl text-xs text-primary hover:text-primary/80 sm:h-8">
           <Plus className="w-3 h-3" /> Novo Card
         </Button>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
         {cards.map(card => (
           <ExpenseCard key={card.id} card={card} onRefresh={() => cardsQuery.refetch()} />
         ))}
       </div>
 
       <Dialog open={showNewCardDialog} onOpenChange={setShowNewCardDialog}>
-        <DialogContent className="bg-card text-card-foreground border border-border sm:max-w-md">
+        <DialogContent className="w-[calc(100vw-1rem)] rounded-3xl border border-border bg-card text-card-foreground sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-primary font-mono text-sm uppercase tracking-widest">Novo card</DialogTitle>
           </DialogHeader>
@@ -691,7 +751,7 @@ function ExpenseCardsSection({ monthId }: { monthId: number }) {
               <label className="text-[10px] font-mono uppercase tracking-widest text-gray-500" htmlFor="new-card-name">Nome</label>
               <input
                 id="new-card-name"
-                className="w-full rounded border border-border bg-background/50 px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-cyan-400"
+                className="h-11 w-full rounded-xl border border-border bg-background/50 px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-cyan-400"
                 value={newCardName}
                 onChange={(event) => setNewCardName(event.target.value)}
                 placeholder="Ex: Investimentos"
@@ -711,9 +771,9 @@ function ExpenseCardsSection({ monthId }: { monthId: number }) {
             </div>
           </div>
 
-          <DialogFooter className="gap-2">
-            <Button variant="ghost" onClick={() => setShowNewCardDialog(false)} className="text-gray-400 text-xs">Cancelar</Button>
-            <Button onClick={handleAddCard} disabled={createCard.isPending} className="text-xs" >
+          <DialogFooter className="grid grid-cols-1 gap-2 sm:flex">
+            <Button variant="ghost" onClick={() => setShowNewCardDialog(false)} className="h-11 text-xs text-gray-400">Cancelar</Button>
+            <Button onClick={handleAddCard} disabled={createCard.isPending} className="h-11 text-xs" >
               {createCard.isPending ? "Criando..." : "Criar card"}
             </Button>
           </DialogFooter>

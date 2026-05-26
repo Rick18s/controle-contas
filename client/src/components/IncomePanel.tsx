@@ -137,12 +137,12 @@ export default function IncomePanel({ monthId }: { monthId: number }) {
   };
 
   return (
-    <div className="rounded-2xl border border-white/5 bg-zinc-900 shadow-sm p-4 transition-all hover:border-purple-500/30">
-      <div className="flex items-center justify-between mb-4">
+    <div className="rounded-3xl border border-white/5 bg-zinc-900 p-4 shadow-sm transition-all hover:border-purple-500/30 sm:rounded-2xl">
+      <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="text-sm font-mono uppercase tracking-widest text-primary" >
           💰 Entradas
         </h2>
-        <Button onClick={() => setShowNewIncomeDialog(true)} size="sm" variant="ghost" className="text-green-400 hover:text-green-300 gap-1 text-xs">
+        <Button onClick={() => setShowNewIncomeDialog(true)} size="sm" variant="ghost" className="h-10 shrink-0 gap-1 rounded-2xl text-xs text-green-400 hover:text-green-300 sm:h-8">
           <Plus className="w-3 h-3" /> Nova Entrada
         </Button>
       </div>
@@ -190,23 +190,23 @@ export default function IncomePanel({ monthId }: { monthId: number }) {
       ))}
 
       {/* Totals */}
-      <div className="mt-4 pt-3 border-t flex gap-6 text-xs font-mono" style={{ borderColor: 'rgba(0,240,255,0.1)' }}>
-        <div>
+      <div className="mt-4 grid grid-cols-1 gap-2 border-t pt-3 text-xs font-mono sm:flex sm:gap-6" style={{ borderColor: 'rgba(0,240,255,0.1)' }}>
+        <div className="flex justify-between gap-3 sm:block">
           <span className="text-gray-500 uppercase">Total Previsto: </span>
           <span className="text-primary">{formatBrl(totalIncome)}</span>
         </div>
-        <div>
+        <div className="flex justify-between gap-3 sm:block">
             <span className="text-gray-500 uppercase">Recebido: </span>
             <span className="text-primary">{formatBrl(totalReceived)}</span>
         </div>
-        <div>
+        <div className="flex justify-between gap-3 sm:block">
           <span className="text-gray-500 uppercase">A receber: </span>
           <span className="text-blue-200">{formatBrl(totalPending)}</span>
         </div>
       </div>
 
       <Dialog open={Boolean(receiptTarget)} onOpenChange={(open) => { if (!open) setReceiptTarget(null); }}>
-        <DialogContent className="bg-card text-card-foreground border border-border sm:max-w-md">
+        <DialogContent className="w-[calc(100vw-1rem)] rounded-3xl border border-border bg-card text-card-foreground sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-primary font-mono text-sm uppercase tracking-widest">Receber entrada</DialogTitle>
           </DialogHeader>
@@ -246,7 +246,7 @@ export default function IncomePanel({ monthId }: { monthId: number }) {
             <div className="space-y-1">
               <Label className="text-[10px] uppercase text-muted-foreground">Valor recebido agora (R$)</Label>
               <input
-                className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                className="h-11 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 type="number"
                 step="0.01"
                 min="0"
@@ -264,9 +264,9 @@ export default function IncomePanel({ monthId }: { monthId: number }) {
               helperText="O saldo do banco será atualizado automaticamente. Se a conta ainda não existir, ela será criada."
             />
           </div>
-          <DialogFooter className="gap-2">
-            <Button variant="ghost" onClick={() => setReceiptTarget(null)} className="text-gray-400 text-xs">Cancelar</Button>
-            <Button onClick={() => { void confirmReceived(); }} disabled={!receiptAccountName || parseMoney(receiptAmount) <= 0 || registerReceipt.isPending} className="text-xs">
+          <DialogFooter className="grid grid-cols-1 gap-2 sm:flex">
+            <Button variant="ghost" onClick={() => setReceiptTarget(null)} className="h-11 text-xs text-gray-400">Cancelar</Button>
+            <Button onClick={() => { void confirmReceived(); }} disabled={!receiptAccountName || parseMoney(receiptAmount) <= 0 || registerReceipt.isPending} className="h-11 text-xs">
               Registrar recebimento
             </Button>
           </DialogFooter>
@@ -289,7 +289,7 @@ function IncomeEntryCard({ entry, onEdit, onDelete, onToggleReceived }: {
 
   return (
     <div
-      className={`rounded-lg p-3 border cursor-pointer transition-all hover:border-purple-500/40 ${isFullyReceived ? 'border-green-500/20 bg-green-500/5' : isPartiallyReceived ? 'border-blue-400/20 bg-blue-950/10' : 'border-white/5 bg-zinc-800/50'}`}
+      className={`min-h-[118px] cursor-pointer rounded-2xl border p-4 transition-all hover:border-purple-500/40 sm:min-h-0 sm:rounded-lg sm:p-3 ${isFullyReceived ? 'border-green-500/20 bg-green-500/5' : isPartiallyReceived ? 'border-blue-400/20 bg-blue-950/10' : 'border-white/5 bg-zinc-800/50'}`}
       onClick={onEdit}
     >
       <div className="flex items-center justify-between">
@@ -303,7 +303,7 @@ function IncomeEntryCard({ entry, onEdit, onDelete, onToggleReceived }: {
             variant="ghost"
             size="sm"
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
-            className="text-gray-600 hover:text-red-400 h-5 w-5 p-0"
+            className="h-9 w-9 p-0 text-gray-600 hover:text-red-400 sm:h-5 sm:w-5"
           >
             <Trash2 className="w-3 h-3" />
           </Button>
@@ -311,7 +311,7 @@ function IncomeEntryCard({ entry, onEdit, onDelete, onToggleReceived }: {
       </div>
       <div className="mt-1 flex items-center justify-between">
         <div className="flex flex-col">
-          <span className={`text-sm font-mono font-bold ${isFullyReceived ? 'text-primary' : 'text-white'}`}>
+          <span className={`text-base font-mono font-bold sm:text-sm ${isFullyReceived ? 'text-primary' : 'text-white'}`}>
             {formatBrl(parseMoney(entry.value))}
           </span>
           {receivedValue > 0 && (
@@ -333,7 +333,7 @@ function IncomeEntryCard({ entry, onEdit, onDelete, onToggleReceived }: {
             e.stopPropagation();
             onToggleReceived();
           }}
-          className={`text-[10px] font-mono uppercase px-1.5 py-0.5 rounded border cursor-pointer hover:opacity-80 transition-opacity ${isFullyReceived ? 'text-green-400 border-green-500/20 bg-green-500/10' : isPartiallyReceived ? 'text-blue-200 border-blue-400/20 bg-blue-500/10' : 'text-purple-400 border-purple-500/20 bg-purple-500/10'}`}
+          className={`min-h-9 cursor-pointer rounded-full border px-3 py-1 text-[10px] font-semibold uppercase transition-opacity hover:opacity-80 ${isFullyReceived ? 'text-green-400 border-green-500/20 bg-green-500/10' : isPartiallyReceived ? 'text-blue-200 border-blue-400/20 bg-blue-500/10' : 'text-purple-400 border-purple-500/20 bg-purple-500/10'}`}
         >
           {isFullyReceived ? "recebido" : isPartiallyReceived ? "parcial" : "receber"}
         </button>
@@ -376,7 +376,7 @@ function IncomeEntryDialog({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
-      <DialogContent className="bg-card text-card-foreground border border-border sm:max-w-md">
+      <DialogContent className="w-[calc(100vw-1rem)] rounded-3xl border border-border bg-card text-card-foreground sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-primary font-mono text-sm uppercase tracking-widest">{title}</DialogTitle>
         </DialogHeader>
@@ -385,7 +385,7 @@ function IncomeEntryDialog({
           <div className="space-y-1">
             <Label className="text-[10px] uppercase text-muted-foreground">Nome da entrada</Label>
             <input
-              className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              className="h-11 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
               value={name}
               onChange={event => setName(event.target.value)}
               placeholder="Ex: Salário"
@@ -395,7 +395,7 @@ function IncomeEntryDialog({
           <div className="space-y-1">
             <Label className="text-[10px] uppercase text-muted-foreground">Valor previsto (R$)</Label>
             <input
-              className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              className="h-11 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
               type="number"
               step="0.01"
               value={value}
@@ -405,9 +405,9 @@ function IncomeEntryDialog({
           </div>
         </div>
 
-        <DialogFooter className="gap-2">
-          <Button variant="ghost" onClick={onClose} className="text-gray-400 text-xs">Cancelar</Button>
-          <Button onClick={() => { void handleSubmit(); }} disabled={isSaving} className="text-xs">
+        <DialogFooter className="grid grid-cols-1 gap-2 sm:flex">
+          <Button variant="ghost" onClick={onClose} className="h-11 text-xs text-gray-400">Cancelar</Button>
+          <Button onClick={() => { void handleSubmit(); }} disabled={isSaving} className="h-11 text-xs">
             {isSaving ? "Salvando..." : "Salvar entrada"}
           </Button>
         </DialogFooter>

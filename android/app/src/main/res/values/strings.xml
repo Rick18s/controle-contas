@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Controle de Contas</string>
+    <string name="title_activity_main">Controle de Contas</string>
+    <string name="package_name">com.controle.contas</string>
+    <string name="custom_url_scheme">com.controle.contas</string>
+</resources>

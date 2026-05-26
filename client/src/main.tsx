@@ -7,6 +7,7 @@ import superjson from "superjson";
 import App from "./App";
 import { getLoginUrl } from "./const";
 import "./index.css";
+import { Capacitor } from "@capacitor/core";
 
 const queryClient = new QueryClient();
 
@@ -37,10 +38,18 @@ queryClient.getMutationCache().subscribe(event => {
   }
 });
 
+// Dynamic base URL: empty relative string for web browser, production URL for native mobile apps.
+const getBaseUrl = () => {
+  if (Capacitor.isNativePlatform()) {
+    return "https://controle-contas-app.onrender.com";
+  }
+  return "";
+};
+
 const trpcClient = trpc.createClient({
   links: [
     httpBatchLink({
-      url: "/api/trpc",
+      url: `${getBaseUrl()}/api/trpc`,
       transformer: superjson,
       fetch(input, init) {
         return globalThis.fetch(input, {

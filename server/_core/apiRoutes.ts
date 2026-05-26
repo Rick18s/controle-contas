@@ -2,7 +2,9 @@ import crypto from "crypto";
 import type { Express } from "express";
 import rateLimit from "express-rate-limit";
 import multer from "multer";
-import { Ofx } from "ofx-data-extractor";
+import { createRequire } from "module";
+const requireModule = createRequire(import.meta.url);
+const { Ofx } = requireModule("ofx-data-extractor");
 import * as db from "../db";
 import { authenticateUserFromRequest } from "./context";
 import { getSessionCookieOptions } from "./cookies";
@@ -98,7 +100,7 @@ export function registerApiRoutes(app: Express) {
 
     const ofx = new Ofx(req.file.buffer.toString("utf8"), { parserMode: "lenient" });
     const normalized = ofx.toNormalized();
-    const rawTransactions = Array.isArray(normalized.transactions) ? normalized.transactions : [];
+    const rawTransactions: unknown[] = Array.isArray(normalized.transactions) ? normalized.transactions : [];
     const transactions = rawTransactions.map(transaction => normalizeOfxTransaction(transaction as Record<string, unknown>));
 
     res.status(200).json({

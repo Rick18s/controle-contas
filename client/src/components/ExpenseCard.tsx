@@ -206,9 +206,9 @@ export default function ExpenseCard({ card, onRefresh }: { card: CardData; onRef
   };
 
   return (
-    <div className="rounded-2xl overflow-hidden border border-white/5 bg-zinc-900 shadow-sm transition-all hover:border-purple-500/30 hover:shadow-lg hover:shadow-purple-500/5">
+    <div className="overflow-hidden rounded-3xl border border-white/5 bg-zinc-900 shadow-sm transition-all hover:border-purple-500/30 hover:shadow-lg hover:shadow-purple-500/5 sm:rounded-2xl">
       {/* Card Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-zinc-900/80">
+      <div className="flex items-center justify-between border-b border-white/5 bg-zinc-900/80 px-4 py-4 sm:py-3">
         <div className="flex items-center gap-2">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-primary/10 text-primary">
             <CardCategoryIcon name={card.name} className="h-4 w-4" />
@@ -218,11 +218,11 @@ export default function ExpenseCard({ card, onRefresh }: { card: CardData; onRef
           </h3>
         </div>
         <div className="flex gap-1">
-          <Button variant="ghost" size="sm" onClick={handleRenameCard} className="text-gray-500 hover:text-primary h-6 w-6 p-0">
-            <Edit2 className="w-3 h-3" />
+          <Button variant="ghost" size="sm" onClick={handleRenameCard} className="h-9 w-9 p-0 text-gray-500 hover:text-primary sm:h-6 sm:w-6">
+            <Edit2 className="w-4 h-4 sm:w-3 sm:h-3" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={handleDeleteCard} className="text-gray-500 hover:text-red-400 h-6 w-6 p-0">
-            <Trash2 className="w-3 h-3" />
+          <Button variant="ghost" size="sm" onClick={handleDeleteCard} className="h-9 w-9 p-0 text-gray-500 hover:text-red-400 sm:h-6 sm:w-6">
+            <Trash2 className="w-4 h-4 sm:w-3 sm:h-3" />
           </Button>
         </div>
       </div>
@@ -248,8 +248,8 @@ export default function ExpenseCard({ card, onRefresh }: { card: CardData; onRef
       </div>
 
       {/* Add Item */}
-      <div className="px-4 py-2 border-t border-border bg-card">
-        <Button variant="ghost" size="sm" onClick={() => setShowNewItemDialog(true)} className="text-gray-500 hover:text-foreground text-xs gap-1 w-full justify-start">
+      <div className="border-t border-border bg-card px-4 py-3 sm:py-2">
+        <Button variant="ghost" size="sm" onClick={() => setShowNewItemDialog(true)} className="h-11 w-full justify-start gap-2 rounded-2xl text-sm text-gray-500 hover:text-foreground sm:h-8 sm:text-xs">
           <Plus className="w-3 h-3" /> Adicionar item
         </Button>
       </div>
@@ -387,7 +387,7 @@ function ItemRow({ item, onEdit, onRefresh, onBalancesRefresh, onDelete, balance
   return (
     <>
       <div
-        className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 cursor-pointer transition-colors hover:bg-zinc-800/40 border-b border-white/5 last:border-0 gap-2 sm:gap-0"
+        className="flex min-h-[82px] cursor-pointer flex-col justify-between gap-3 border-b border-white/5 px-4 py-4 transition-colors last:border-0 hover:bg-zinc-800/40 sm:min-h-0 sm:flex-row sm:items-center sm:gap-0 sm:py-3"
         onClick={onEdit}
       >
         <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -423,7 +423,7 @@ function ItemRow({ item, onEdit, onRefresh, onBalancesRefresh, onDelete, balance
           </div>
         </div>
         <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto sm:ml-2 mt-1 sm:mt-0">
-          <span className={`text-sm font-medium ${isPaid ? 'text-green-600' : 'text-foreground'}`}>
+          <span className={`text-base font-semibold sm:text-sm ${isPaid ? 'text-green-600' : 'text-foreground'}`}>
             {formatBrl(parseMoney(item.value))}
           </span>
           <button
@@ -431,7 +431,7 @@ function ItemRow({ item, onEdit, onRefresh, onBalancesRefresh, onDelete, balance
               e.stopPropagation();
               handleToggleStatus();
             }}
-            className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full border uppercase cursor-pointer hover:opacity-80 transition-opacity min-w-[70px] text-center ${statusColors[item.status]}`}
+            className={`min-h-9 min-w-[88px] cursor-pointer rounded-full border px-3 py-1 text-center text-[11px] font-semibold uppercase transition-opacity hover:opacity-80 sm:min-h-0 sm:min-w-[70px] sm:px-2.5 sm:py-0.5 sm:text-[10px] ${statusColors[item.status]}`}
           >
             {item.status}
           </button>
@@ -439,7 +439,7 @@ function ItemRow({ item, onEdit, onRefresh, onBalancesRefresh, onDelete, balance
             variant="ghost"
             size="icon"
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
-            className="text-gray-400 hover:text-red-500 h-6 w-6 rounded-full"
+            className="h-9 w-9 rounded-full text-gray-400 hover:text-red-500 sm:h-6 sm:w-6"
           >
             <Trash2 className="w-3.5 h-3.5" />
           </Button>
@@ -447,7 +447,7 @@ function ItemRow({ item, onEdit, onRefresh, onBalancesRefresh, onDelete, balance
       </div>
 
       <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
-        <DialogContent className="bg-card text-card-foreground border border-border sm:max-w-md">
+        <DialogContent className="w-[calc(100vw-1rem)] rounded-3xl border border-border bg-card text-card-foreground sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-primary font-mono text-sm uppercase tracking-widest">Registrar pagamento</DialogTitle>
           </DialogHeader>
@@ -479,9 +479,9 @@ function ItemRow({ item, onEdit, onRefresh, onBalancesRefresh, onDelete, balance
               helperText={quickPaymentMode === "bank" ? "Se a conta ainda não existir em Saldos, ela será criada com o valor descontado." : "Essa opção não altera o saldo bancário agora."}
             />
           </div>
-          <DialogFooter className="gap-2">
-            <Button variant="ghost" onClick={() => setShowPaymentDialog(false)} className="text-gray-400 text-xs">Cancelar</Button>
-            <Button onClick={confirmPayment} disabled={(quickPaymentMode === "bank" && !paymentAccountName.trim()) || updateItem.isPending} className="text-xs">
+          <DialogFooter className="grid grid-cols-1 gap-2 sm:flex">
+            <Button variant="ghost" onClick={() => setShowPaymentDialog(false)} className="h-11 text-xs text-gray-400">Cancelar</Button>
+            <Button onClick={confirmPayment} disabled={(quickPaymentMode === "bank" && !paymentAccountName.trim()) || updateItem.isPending} className="h-11 text-xs">
               Confirmar pagamento
             </Button>
           </DialogFooter>
@@ -657,7 +657,7 @@ function ExpenseItemDialog({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
-      <DialogContent className="bg-card text-card-foreground border border-border sm:max-w-2xl">
+      <DialogContent className="w-[calc(100vw-1rem)] rounded-3xl border border-border bg-card text-card-foreground sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="text-primary font-mono text-sm uppercase tracking-widest">{title}</DialogTitle>
         </DialogHeader>
@@ -666,7 +666,7 @@ function ExpenseItemDialog({
           <div className="space-y-1">
             <Label className="text-[10px] uppercase text-muted-foreground">Nome da conta</Label>
             <input
-              className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              className="h-11 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
               value={name}
               onChange={event => setName(event.target.value)}
               placeholder="Ex: Aluguel"
@@ -676,7 +676,7 @@ function ExpenseItemDialog({
           <div className="space-y-1">
             <Label className="text-[10px] uppercase text-muted-foreground">Vencimento</Label>
             <input
-              className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              className="h-11 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
               value={dueDate}
               onChange={event => setDueDate(event.target.value)}
               placeholder="Ex: 20/05"
@@ -685,7 +685,7 @@ function ExpenseItemDialog({
           <div className="space-y-1">
             <Label className="text-[10px] uppercase text-muted-foreground">Valor (R$)</Label>
             <input
-              className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              className="h-11 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
               type="number"
               step="0.01"
               value={value}
@@ -705,13 +705,13 @@ function ExpenseItemDialog({
                 type="button"
                 onClick={fillRemainingPayment}
                 disabled={remainingToPay <= 0}
-                className="rounded border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-primary transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[10px] font-semibold uppercase text-primary transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {item ? "Pagar restante" : "Pagar total"}
               </button>
             </div>
             <input
-              className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              className="h-11 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
               type="number"
               step="0.01"
               value={item ? paymentNow : paidValue}
@@ -727,7 +727,7 @@ function ExpenseItemDialog({
           <div className="space-y-1">
             <Label className="text-[10px] uppercase text-muted-foreground">Prioridade</Label>
             <Select value={priority} onValueChange={setPriority}>
-              <SelectTrigger className="w-full bg-background">
+              <SelectTrigger className="h-11 w-full rounded-xl bg-background">
                 <SelectValue placeholder="Prioridade" />
               </SelectTrigger>
               <SelectContent>
@@ -786,20 +786,20 @@ function ExpenseItemDialog({
           </div>
         </div>
 
-        <DialogFooter className="gap-2">
+        <DialogFooter className="grid grid-cols-1 gap-2 sm:flex">
           {item && (
             <Button
               variant="ghost"
               onClick={() => restorePrevious.mutate({ id: item.id })}
               disabled={restorePrevious.isPending || updateItem.isPending}
-              className="mr-auto gap-1 text-blue-200 text-xs hover:text-blue-100"
+              className="h-11 gap-1 text-xs text-blue-200 hover:text-blue-100 sm:mr-auto"
             >
               <RotateCcw className="h-3.5 w-3.5" />
               Restaurar anterior
             </Button>
           )}
-          <Button variant="ghost" onClick={onClose} className="text-gray-400 text-xs">Cancelar</Button>
-          <Button onClick={() => { void handleSubmit(); }} disabled={isSaving || updateItem.isPending || restorePrevious.isPending} className="text-xs">
+          <Button variant="ghost" onClick={onClose} className="h-11 text-xs text-gray-400">Cancelar</Button>
+          <Button onClick={() => { void handleSubmit(); }} disabled={isSaving || updateItem.isPending || restorePrevious.isPending} className="h-11 text-xs">
             {isSaving || updateItem.isPending ? "Salvando..." : "Salvar despesa"}
           </Button>
         </DialogFooter>

@@ -65,6 +65,7 @@
     font-family: var(--font-sans);
     background-color: var(--bg-deep);
     letter-spacing: 0;
+    -webkit-tap-highlight-color: transparent;
   }
   h1, h2, h3 {
     font-family: var(--font-display);
@@ -85,6 +86,35 @@
   @apply mx-auto px-4 sm:px-6 lg:px-8;
   width: 100%;
   max-width: 1400px;
+}
+
+@media (max-width: 640px) {
+  .container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  [role="dialog"] {
+    max-height: calc(100svh - 1rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+
+.pb-safe {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.75rem);
+}
+
+.bottom-safe {
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
 }
 
 /* Flat Clean Style - Organizze Inspired */

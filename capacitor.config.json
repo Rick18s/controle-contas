@@ -1,0 +1,15 @@
+{
+  "appId": "com.controle.contas",
+  "appName": "Controle de Contas",
+  "webDir": "dist/public",
+  "bundledWebRuntime": false,
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  },
+  "server": {
+    "url": "https://controle-contas-app.onrender.com",
+    "cleartext": false
+  }
+}

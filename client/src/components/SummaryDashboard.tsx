@@ -70,9 +70,9 @@ export default function SummaryDashboard({ monthId }: { monthId: number }) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.1fr_1.9fr]">
-        <div className={`rounded-2xl border p-5 shadow-sm ${projectedAfterBills >= 0 ? "border-primary/30 bg-primary/10" : "border-red-500/30 bg-red-950/20"}`}>
+        <div className={`rounded-3xl border p-5 shadow-sm sm:rounded-2xl ${projectedAfterBills >= 0 ? "border-primary/30 bg-primary/10" : "border-red-500/30 bg-red-950/20"}`}>
           <div className="text-[11px] font-mono uppercase tracking-widest text-zinc-400">Situação do mês</div>
           <div className={`mt-2 text-2xl font-bold font-mono sm:text-3xl ${projectedAfterBills >= 0 ? "text-primary" : "text-red-400"}`}>
             {formatBrl(projectedAfterBills)}
@@ -86,7 +86,7 @@ export default function SummaryDashboard({ monthId }: { monthId: number }) {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/5 bg-zinc-900/50 p-4 shadow-sm">
+        <div className="rounded-3xl border border-white/5 bg-zinc-900/50 p-4 shadow-sm sm:rounded-2xl">
           <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h3 className="text-xs font-mono uppercase tracking-widest text-primary">Resumo autoexplicativo</h3>
@@ -126,14 +126,14 @@ export default function SummaryDashboard({ monthId }: { monthId: number }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:gap-6">
         {/* Area Chart: Portfolio Growth */}
-        <div className="lg:col-span-2 rounded-2xl border border-white/5 bg-zinc-900/50 backdrop-blur-md p-4 shadow-sm">
+        <div className="rounded-3xl border border-white/5 bg-zinc-900/50 p-4 shadow-sm backdrop-blur-md sm:rounded-2xl lg:col-span-2">
           <h3 className="text-xs font-mono uppercase tracking-widest text-primary mb-4 flex items-center justify-between">
             <span>Evolução de Saldo</span>
             <span className="text-[10px] text-zinc-500 font-normal">Meses Fechados</span>
           </h3>
-          <div className="h-[280px] w-full">
+          <div className="h-[220px] w-full sm:h-[280px]">
             {analytics.length === 0 ? (
               <div className="h-full w-full flex items-center justify-center"><p className="text-zinc-500 text-xs font-mono">Sem dados históricos</p></div>
             ) : (
@@ -157,11 +157,11 @@ export default function SummaryDashboard({ monthId }: { monthId: number }) {
         </div>
 
         {/* Pie Chart: Expenses Breakdown */}
-        <div className="rounded-2xl border border-white/5 bg-zinc-900/50 backdrop-blur-md p-4 shadow-sm">
+        <div className="rounded-3xl border border-white/5 bg-zinc-900/50 p-4 shadow-sm backdrop-blur-md sm:rounded-2xl">
           <h3 className="text-xs font-mono uppercase tracking-widest text-primary mb-4 flex items-center justify-between">
             <span>Despesas do Mês</span>
           </h3>
-          <div className="h-[280px] w-full flex items-center justify-center relative">
+          <div className="relative flex h-[220px] w-full items-center justify-center sm:h-[280px]">
             {pieData.length === 0 ? (
               <p className="text-zinc-500 text-xs font-mono">Sem despesas registradas</p>
             ) : (
