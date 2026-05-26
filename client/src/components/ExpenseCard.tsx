@@ -638,6 +638,15 @@ function ExpenseItemDialog({
   const projectedPaidAmount = item
     ? Math.min(parseMoney(value), getPaidAmount(item) + visiblePaymentAmount)
     : parseMoney(paidValue);
+  const remainingToPay = Math.max(parseMoney(value) - (item ? getPaidAmount(item) : 0), 0);
+  const fillRemainingPayment = () => {
+    const nextValue = remainingToPay.toFixed(2);
+    if (item) {
+      setIncrementalPayment(nextValue);
+    } else {
+      setPaidAndStatus(value || "0.00");
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
@@ -681,9 +690,19 @@ function ExpenseItemDialog({
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-[10px] uppercase text-muted-foreground">
-              {item ? "Pagar agora (R$)" : "Pago (R$)"}
-            </Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-[10px] uppercase text-muted-foreground">
+                {item ? "Pagar agora (R$)" : "Pago (R$)"}
+              </Label>
+              <button
+                type="button"
+                onClick={fillRemainingPayment}
+                disabled={remainingToPay <= 0}
+                className="rounded border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-primary transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {item ? "Pagar restante" : "Pagar total"}
+              </button>
+            </div>
             <input
               className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
               type="number"
