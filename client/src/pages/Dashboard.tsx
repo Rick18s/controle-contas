@@ -19,6 +19,7 @@ import {
   ReceiptText,
   Wallet,
   Landmark,
+  BrainCircuit,
 } from "lucide-react";
 import { toast } from "sonner";
 import ExpenseCard from "@/components/ExpenseCard";
@@ -44,11 +45,13 @@ const CurrencyCalculator = lazy(() => import("@/components/CurrencyCalculator"))
 const BankStatementPanel = lazy(() => import("@/components/BankStatementPanel"));
 const AdminUsersPanel = lazy(() => import("@/components/AdminUsersPanel"));
 const QuickAddDialog = lazy(() => import("@/components/QuickAddDialog"));
+const FinancialXrayPanel = lazy(() => import("@/components/FinancialXrayPanel"));
 
 const dashboardTabs = [
   { value: "overview", label: "Visão Geral" },
   { value: "priorities", label: "Prioridades" },
   { value: "simulator", label: "Simulador" },
+  { value: "xray", label: "Raio-X" },
   { value: "expenses", label: "Despesas" },
   { value: "income", label: "Receitas" },
   { value: "import", label: "Importar" },
@@ -61,9 +64,9 @@ const dashboardTabs = [
 const mobileTabs = [
   { value: "overview", label: "Início", icon: LayoutDashboard },
   { value: "priorities", label: "Pagar", icon: ListChecks },
+  { value: "xray", label: "Raio-X", icon: BrainCircuit },
   { value: "expenses", label: "Contas", icon: ReceiptText },
   { value: "income", label: "Entradas", icon: Wallet },
-  { value: "balances", label: "Saldos", icon: Landmark },
 ] as const;
 
 function PanelFallback() {
@@ -512,6 +515,10 @@ export default function Dashboard() {
 
               <TabsContent value="simulator" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
                 {activeTab === "simulator" && <PaymentSimulator monthId={selectedMonthId} />}
+              </TabsContent>
+
+              <TabsContent value="xray" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
+                {activeTab === "xray" && <FinancialXrayPanel monthId={selectedMonthId} />}
               </TabsContent>
 
               <TabsContent value="expenses" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
