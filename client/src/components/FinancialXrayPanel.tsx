@@ -1,6 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { formatBrl, getPaidAmount, getRemainingAmount, parseMoney } from "@/lib/money";
-import { AlertTriangle, BrainCircuit, CheckCircle2, CircleDollarSign, Landmark, ShieldCheck, Snowflake } from "lucide-react";
+import { AlertTriangle, ArrowRight, BrainCircuit, CheckCircle2, CircleDollarSign, Landmark, ShieldCheck, Snowflake, Target } from "lucide-react";
 import type React from "react";
 import { useMemo, useState } from "react";
 
@@ -22,6 +22,7 @@ type DebtItem = {
 };
 
 type LifestyleBucket = "Burocracia" | "Qualidade de Vida" | "Luxo";
+type HealthLevel = "critical" | "attention" | "building" | "protected";
 
 const CREDIT_TERMS = [
   "cartao",
@@ -107,6 +108,120 @@ function buildSnowballPlan(debts: DebtItem[], availableCash: number) {
   });
 
   return { ordered, plan, reserveAfterPlan: cash };
+}
+
+function getHealthLevel(currentEquity: number, pms: number, pmr: number): HealthLevel {
+  if (currentEquity >= pmr) return "protected";
+  if (currentEquity >= pms) return "building";
+  if (currentEquity >= pms * 0.35) return "attention";
+  return "critical";
+}
+
+function healthCopy(level: HealthLevel) {
+  if (level === "protected") {
+    return {
+      title: "Você está protegido para imprevistos grandes.",
+      tone: "green" as const,
+      explanation: "Seu patrimônio já cobre a reserva recomendada para renda variável. O próximo passo é acelerar independência financeira.",
+    };
+  }
+  if (level === "building") {
+    return {
+      title: "Você já tem colchão mínimo, mas ainda precisa reforçar.",
+      tone: "primary" as const,
+      explanation: "A reserva de sobrevivência está coberta. Agora o foco é chegar na reserva recomendada, que dá mais fôlego para meses ruins.",
+    };
+  }
+  if (level === "attention") {
+    return {
+      title: "Você tem alguma proteção, mas ainda está exposto.",
+      tone: "red" as const,
+      explanation: "Qualquer atraso forte de receita pode virar problema. Reduza dívidas pequenas e pare de aumentar compromissos fixos.",
+    };
+  }
+  return {
+    title: "Alerta: sua margem de segurança está baixa.",
+    tone: "red" as const,
+    explanation: "Antes de pensar em crescimento, o plano precisa proteger caixa, quitar dívidas elimináveis e montar reserva.",
+  };
+}
+
+function shortMetricMeaning(label: string) {
+  if (label === "PMS") return "mínimo para sobreviver alguns meses sem renda";
+  if (label === "PMR") return "reserva recomendada para quem tem renda variável";
+  if (label === "PI") return "referência de patrimônio esperado para sua idade";
+  return "capital estimado para viver de renda com retirada conservadora";
+}
+
+function buildActionSteps(params: {
+  availableCash: number;
+  pendingExpense: number;
+  reserveGap: number;
+  paidDebtsCount: number;
+  reserveAfterPlan: number;
+  luxTotal: number;
+  monthlyExpense: number;
+}) {
+  const steps: Array<{ title: string; detail: string; tone?: "green" | "red" | "primary" }> = [];
+
+  if (params.availableCash <= 0) {
+    steps.push({
+      title: "1. Não distribua pagamentos ainda",
+      detail: "Sem caixa disponível, o melhor uso do raio-x é escolher quais contas ficam na primeira fila quando o dinheiro entrar.",
+      tone: "red",
+    });
+  } else if (params.paidDebtsCount > 0) {
+    steps.push({
+      title: "1. Quite as menores faturas listadas",
+      detail: `Com o caixa informado, dá para eliminar ${params.paidDebtsCount} credor(es). Isso simplifica o mês e reduz risco de esquecimento.`,
+      tone: "green",
+    });
+  } else {
+    steps.push({
+      title: "1. Guarde o caixa para a primeira conta crítica",
+      detail: "O dinheiro informado não fecha nenhuma fatura inteira pela bola de neve. Evite pulverizar pagamentos sem estratégia.",
+      tone: "primary",
+    });
+  }
+
+  if (params.reserveAfterPlan > 0) {
+    steps.push({
+      title: "2. Sobra vira reserva",
+      detail: `Depois das quitações sugeridas, mantenha ${formatBrl(params.reserveAfterPlan)} parado como segurança.`,
+      tone: "green",
+    });
+  } else {
+    steps.push({
+      title: "2. Não conte com sobra",
+      detail: "Todo o caixa informado será consumido pelo plano. Só assuma novos gastos depois de confirmar entradas recebidas.",
+      tone: "red",
+    });
+  }
+
+  const luxPercent = params.monthlyExpense > 0 ? (params.luxTotal / params.monthlyExpense) * 100 : 0;
+  steps.push({
+    title: "3. Procure cortes em Luxo primeiro",
+    detail: luxPercent > 5
+      ? `Luxo representa ${luxPercent.toFixed(1)}% do mês. É o primeiro bloco para ajustar sem desmontar sua rotina.`
+      : "Luxo está baixo. Se precisar cortar, revise burocracias e assinaturas fixas com cuidado.",
+    tone: luxPercent > 5 ? "primary" : "green",
+  });
+
+  if (params.reserveGap > 0) {
+    steps.push({
+      title: "4. Meta principal: completar o PMS",
+      detail: `A reserva mínima ainda precisa de ${formatBrl(params.reserveGap)}. Enquanto ela não existir, crescimento vem depois de proteção.`,
+      tone: "red",
+    });
+  } else {
+    steps.push({
+      title: "4. Próxima meta: PMR",
+      detail: "Com o PMS coberto, direcione excedentes para uma reserva mais robusta antes de aumentar padrão de vida.",
+      tone: "green",
+    });
+  }
+
+  return steps;
 }
 
 export default function FinancialXrayPanel({ monthId }: { monthId: number }) {
@@ -198,23 +313,32 @@ export default function FinancialXrayPanel({ monthId }: { monthId: number }) {
     };
   }, [availableCash, cards, currentEquity, income, age]);
 
+  const health = healthCopy(getHealthLevel(currentEquity, analysis.metrics.pms, analysis.metrics.pmr));
+  const paidDebtsCount = analysis.snowball.plan.filter(item => item.status === "quitar").length;
+  const actionSteps = buildActionSteps({
+    availableCash,
+    pendingExpense: analysis.pendingExpense,
+    reserveGap: analysis.gaps.pms,
+    paidDebtsCount,
+    reserveAfterPlan: analysis.snowball.reserveAfterPlan,
+    luxTotal: analysis.buckets.Luxo.total,
+    monthlyExpense: analysis.monthlyExpense,
+  });
   const xrayStatus = currentEquity >= analysis.metrics.pms
-    ? "Reserva mínima coberta"
-    : `Faltam ${formatBrl(analysis.gaps.pms)} para o PMS`;
+    ? "mínimo protegido"
+    : `${formatBrl(analysis.gaps.pms)} até o mínimo`;
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <div className="rounded-3xl border border-primary/20 bg-primary/10 p-5 shadow-sm sm:rounded-2xl">
+      <div className={`rounded-3xl border p-5 shadow-sm sm:rounded-2xl ${health.tone === "green" ? "border-green-500/25 bg-green-950/20" : health.tone === "red" ? "border-red-500/25 bg-red-950/20" : "border-primary/20 bg-primary/10"}`}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-widest text-primary">
               <BrainCircuit className="h-4 w-4" />
               Raio-X financeiro
             </h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-300">
-              Diagnóstico inspirado na metodologia de organização financeira de Gustavo Cerbasi:
-              patrimônio de segurança, independência financeira e plano de quitação por bola de neve.
-            </p>
+            <h3 className="mt-3 max-w-3xl text-2xl font-bold text-white">{health.title}</h3>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-300">{health.explanation}</p>
           </div>
           <div className="grid grid-cols-1 gap-2 text-xs min-[420px]:grid-cols-3 lg:min-w-[520px]">
             <XrayInput label="Caixa disponível" value={availableCashInput} onChange={setAvailableCashInput} placeholder={bankBalance.toFixed(2)} />
@@ -224,18 +348,41 @@ export default function FinancialXrayPanel({ monthId }: { monthId: number }) {
         </div>
       </div>
 
+      <section className="rounded-3xl border border-white/5 bg-zinc-900 p-4 sm:rounded-2xl">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-primary">
+              <Target className="h-4 w-4" />
+              O que fazer agora
+            </h3>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Ordem prática para uma pessoa que não quer interpretar fórmula: pagar, proteger e depois crescer.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-white/5 bg-black/20 px-3 py-2 text-xs text-muted-foreground">
+            Caixa analisado: <strong className="text-white">{formatBrl(availableCash)}</strong>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-2 lg:grid-cols-4">
+          {actionSteps.map(step => (
+            <ActionStep key={step.title} {...step} />
+          ))}
+        </div>
+      </section>
+
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
-        <MetricCard icon={CircleDollarSign} label="Despesa mensal (D)" value={formatBrl(analysis.monthlyExpense)} helper="Base dos cálculos patrimoniais." />
-        <MetricCard icon={Landmark} label="Caixa usado no plano" value={formatBrl(availableCash)} helper="Informe manualmente ou usa saldo bancário." />
-        <MetricCard icon={ShieldCheck} label="Situação PMS" value={xrayStatus} helper="PMS = 6 meses de despesas." tone={analysis.gaps.pms <= 0 ? "green" : "red"} />
-        <MetricCard icon={Snowflake} label="Bola de neve" value={`${analysis.debts.length} dívida(s)`} helper={`Reserva após plano: ${formatBrl(analysis.snowball.reserveAfterPlan)}`} />
+        <MetricCard icon={CircleDollarSign} label="Seu custo de vida" value={formatBrl(analysis.monthlyExpense)} helper="Quanto este mês exige para manter o padrão atual." />
+        <MetricCard icon={Landmark} label="Entradas do mês" value={formatBrl(analysis.expectedIncome)} helper={`Já recebido: ${formatBrl(analysis.receivedIncome)}.`} />
+        <MetricCard icon={ShieldCheck} label="Reserva mínima" value={xrayStatus} helper="A primeira meta é aguentar meses ruins sem se desesperar." tone={analysis.gaps.pms <= 0 ? "green" : "red"} />
+        <MetricCard icon={Snowflake} label="Credores elimináveis" value={`${paidDebtsCount}/${analysis.debts.length}`} helper={`Sobra como reserva: ${formatBrl(analysis.snowball.reserveAfterPlan)}`} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_1.4fr]">
         <section className="rounded-3xl border border-white/5 bg-zinc-900 p-4 sm:rounded-2xl">
-          <h3 className="text-xs font-semibold uppercase tracking-widest text-primary">Metas patrimoniais</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-widest text-primary">Metas em português claro</h3>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Perfil usado: renda variável/autônomo. As fórmulas aparecem em LaTeX para auditoria.
+            As fórmulas continuam visíveis, mas o mais importante é saber que decisão cada meta orienta.
           </p>
 
           <div className="mt-4 space-y-2">
@@ -249,7 +396,7 @@ export default function FinancialXrayPanel({ monthId }: { monthId: number }) {
         <section className="rounded-3xl border border-white/5 bg-zinc-900 p-4 sm:rounded-2xl">
           <h3 className="text-xs font-semibold uppercase tracking-widest text-primary">Plano prático de pagamento</h3>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Primeiro quita passivos fiscais identificados; depois aplica bola de neve do menor para o maior cartão.
+            A lista mostra exatamente quem pagar com o caixa informado. O objetivo é eliminar credores inteiros, não pingar dinheiro em todos.
           </p>
 
           <div className="mt-4 divide-y divide-white/5 overflow-hidden rounded-2xl border border-white/5">
@@ -268,7 +415,7 @@ export default function FinancialXrayPanel({ monthId }: { monthId: number }) {
                 </div>
                 <div className="font-semibold text-blue-100">{formatBrl(item.remaining)}</div>
                 <div className={item.status === "quitar" ? "text-green-400" : "text-zinc-500"}>
-                  {item.status === "quitar" ? `Quitar ${formatBrl(item.suggestedPayment)}` : "Aguardar"}
+                  {item.status === "quitar" ? `Pague inteiro: ${formatBrl(item.suggestedPayment)}` : "Não mexer agora"}
                 </div>
               </div>
             ))}
@@ -299,10 +446,10 @@ export default function FinancialXrayPanel({ monthId }: { monthId: number }) {
           Observações do raio-x
         </h3>
         <div className="mt-3 grid grid-cols-1 gap-2 text-xs leading-5 text-zinc-300 md:grid-cols-2">
-          <Note>Feira e combustível podem aparecer como orçamento/cartão. O raio-x conta no custo de vida, mas evita tratar como saída bancária imediata quando estiverem marcados como cartão.</Note>
-          <Note>Se sobrar dinheiro depois da bola de neve, mantenha como reserva de emergência até alcançar PMS e PMR.</Note>
-          <Note>Receitas previstas não entram automaticamente no caixa disponível. Use o campo de caixa para simular o dinheiro que você realmente tem hoje.</Note>
-          <Note>Este painel é um apoio de planejamento; decisões fiscais, juros e renegociações devem ser confirmadas com os contratos e vencimentos reais.</Note>
+          <Note>Feira e combustível entram no custo de vida. Se estiverem marcados como cartão, o painel não trata como saída imediata de banco.</Note>
+          <Note>Sobra depois da bola de neve não é dinheiro livre: é início de reserva até PMS e PMR estarem confortáveis.</Note>
+          <Note>Receitas previstas são promessa. Para decidir pagamento hoje, use apenas o caixa que já está disponível.</Note>
+          <Note>Se o mês estiver apertado, Luxo corta primeiro; depois renegocie Burocracia. Qualidade de Vida só deve cair quando não houver alternativa.</Note>
         </div>
       </section>
     </div>
@@ -360,12 +507,41 @@ function MetricCard({
   );
 }
 
+function ActionStep({
+  title,
+  detail,
+  tone = "primary",
+}: {
+  title: string;
+  detail: string;
+  tone?: "green" | "red" | "primary";
+}) {
+  const toneClass = tone === "green"
+    ? "border-green-500/20 bg-green-950/20 text-green-100"
+    : tone === "red"
+      ? "border-red-500/20 bg-red-950/20 text-red-100"
+      : "border-primary/20 bg-primary/10 text-zinc-100";
+
+  return (
+    <div className={`rounded-2xl border p-3 ${toneClass}`}>
+      <div className="flex items-start gap-2">
+        <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+        <div>
+          <div className="text-sm font-semibold">{title}</div>
+          <p className="mt-1 text-xs leading-5 opacity-80">{detail}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FormulaRow({ label, formula, value, gap }: { label: string; formula: string; value: number; gap: number }) {
   return (
     <div className="rounded-2xl border border-white/5 bg-black/20 p-3">
       <div className="flex flex-col gap-2 min-[480px]:flex-row min-[480px]:items-center min-[480px]:justify-between">
         <div>
           <div className="text-sm font-semibold text-white">{label}</div>
+          <div className="mt-0.5 text-xs text-zinc-400">{shortMetricMeaning(label)}</div>
           <code className="text-xs text-muted-foreground">{formula}</code>
         </div>
         <div className="text-left min-[480px]:text-right">
