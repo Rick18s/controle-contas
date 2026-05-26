@@ -1,6 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { formatBrl, getPaidAmount, getRemainingAmount, parseMoney } from "@/lib/money";
-import { AlertTriangle, ArrowRight, BrainCircuit, CheckCircle2, CircleDollarSign, Landmark, ShieldCheck, Snowflake, Target } from "lucide-react";
+import { AlertTriangle, ArrowRight, BrainCircuit, CheckCircle2, CircleDollarSign, Landmark, ShieldCheck, Snowflake, Tags, Target } from "lucide-react";
 import type React from "react";
 import { useMemo, useState } from "react";
 
@@ -23,6 +23,8 @@ type DebtItem = {
 
 type LifestyleBucket = "Burocracia" | "Qualidade de Vida" | "Luxo";
 type HealthLevel = "critical" | "attention" | "building" | "protected";
+type XrayProfile = "business" | "household" | "personal";
+type BucketSummary = { total: number; items: number; examples: Array<{ name: string; value: number; reason: string }> };
 
 const CREDIT_TERMS = [
   "cartao",
@@ -62,25 +64,48 @@ function isFiscalDebt(itemName: string) {
   return text.includes("iptu") || text.includes("imposto") || text.includes("simples nacional");
 }
 
-function classifyExpense(category: string, itemName: string): LifestyleBucket {
-  const text = normalizeText(`${category} ${itemName}`);
-
-  if (
-    /\b(aluguel|condominio|energia|agua|internet|telefone|iptu|imposto|simples|contabilidade|seguro|emprestimo|financiamento|parcela|cartao|fatura|casa|manutencao)\b/.test(text)
-  ) {
-    return "Burocracia";
-  }
-
-  if (
-    /\b(feira|mercado|combustivel|gasolina|saude|medico|cabelo|cuidados|faxina|educacao|familia|mae|alimentacao)\b/.test(text)
-  ) {
-    return "Qualidade de Vida";
-  }
-
-  return "Luxo";
+function detectProfile(centerName: string): XrayProfile {
+  const text = normalizeText(centerName);
+  if (/\b(empresa|escritorio|studio|agencia|loja|negocio|pj|contabilidade|cliente)\b/.test(text)) return "business";
+  if (/\b(casa|familia|mae|mae|pai|debora|pedro)\b/.test(text)) return "household";
+  return "personal";
 }
 
-function lifestyleDescription(bucket: LifestyleBucket) {
+function classifyExpense(category: string, itemName: string): { bucket: LifestyleBucket; reason: string } {
+  const text = normalizeText(`${category} ${itemName}`);
+  const itemText = normalizeText(itemName);
+
+  if (
+    /\b(feira|mercado|combustivel|gasolina|posto|saude|medico|cabelo|cuidados|faxina|educacao|familia|mae|alimentacao|celular|salario|folha|equipe|colaborador|funcionario|fornecedor|syllas|sylas|rai|raquel)\b/.test(itemText)
+  ) {
+    return { bucket: "Qualidade de Vida", reason: "mantém rotina, cuidado, equipe, entrega ou operação prática" };
+  }
+
+  if (
+    /\b(aluguel|condominio|energia|agua|internet|telefone|iptu|imposto|simples|contabilidade|seguro|emprestimo|financiamento|parcela|cartao|cartoes|fatura|manutencao|dizimo|distribuicao|lucro|retirada|prolabore|pro-labore|mac|equipamento|nubank|nu|itau|inter|picpay|c6|sofisa|xp|sam|caixa)\b/.test(text)
+  ) {
+    return { bucket: "Burocracia", reason: "compromisso fixo, dívida, imposto, estrutura ou retirada planejada" };
+  }
+
+  return { bucket: "Luxo", reason: "não foi reconhecido como obrigação fixa, operação essencial ou cuidado recorrente" };
+}
+
+function bucketLabel(bucket: LifestyleBucket, profile: XrayProfile) {
+  if (profile === "business") {
+    if (bucket === "Burocracia") return "Operação obrigatória";
+    if (bucket === "Qualidade de Vida") return "Equipe e entrega";
+    return "Extras ou não classificados";
+  }
+  if (bucket === "Luxo") return "Luxo ou extras";
+  return bucket;
+}
+
+function lifestyleDescription(bucket: LifestyleBucket, profile: XrayProfile) {
+  if (profile === "business") {
+    if (bucket === "Burocracia") return "Impostos, aluguel, estrutura, dívidas, equipamentos e retiradas combinadas.";
+    if (bucket === "Qualidade de Vida") return "Pessoas, fornecedores e gastos que ajudam a operação a entregar.";
+    return "Itens que o sistema não reconheceu como obrigação da operação. Revise antes de cortar.";
+  }
   if (bucket === "Burocracia") return "Compromissos fixos, impostos, moradia, dívidas e estrutura básica.";
   if (bucket === "Qualidade de Vida") return "Gastos que sustentam bem-estar, rotina, cuidado e vida prática.";
   return "Desejos, extras e escolhas que podem ser cortadas primeiro em aperto de caixa.";
@@ -117,30 +142,31 @@ function getHealthLevel(currentEquity: number, pms: number, pmr: number): Health
   return "critical";
 }
 
-function healthCopy(level: HealthLevel) {
+function healthCopy(level: HealthLevel, profile: XrayProfile) {
+  const subject = profile === "business" ? "o caixa do centro" : "sua vida financeira";
   if (level === "protected") {
     return {
-      title: "Você está protegido para imprevistos grandes.",
+      title: profile === "business" ? "A operação está protegida para imprevistos grandes." : "Você está protegido para imprevistos grandes.",
       tone: "green" as const,
-      explanation: "Seu patrimônio já cobre a reserva recomendada para renda variável. O próximo passo é acelerar independência financeira.",
+      explanation: `A reserva calculada cobre uma margem robusta. O próximo passo é usar excedentes sem comprometer ${subject}.`,
     };
   }
   if (level === "building") {
     return {
-      title: "Você já tem colchão mínimo, mas ainda precisa reforçar.",
+      title: profile === "business" ? "A operação tem colchão mínimo, mas ainda precisa reforçar." : "Você já tem colchão mínimo, mas ainda precisa reforçar.",
       tone: "primary" as const,
-      explanation: "A reserva de sobrevivência está coberta. Agora o foco é chegar na reserva recomendada, que dá mais fôlego para meses ruins.",
+      explanation: "A reserva mínima está coberta. Agora o foco é chegar na reserva recomendada, que dá mais fôlego para meses ruins.",
     };
   }
   if (level === "attention") {
     return {
-      title: "Você tem alguma proteção, mas ainda está exposto.",
+      title: profile === "business" ? "A operação tem alguma proteção, mas ainda está exposta." : "Você tem alguma proteção, mas ainda está exposto.",
       tone: "red" as const,
       explanation: "Qualquer atraso forte de receita pode virar problema. Reduza dívidas pequenas e pare de aumentar compromissos fixos.",
     };
   }
   return {
-    title: "Alerta: sua margem de segurança está baixa.",
+    title: profile === "business" ? "Alerta: a margem de segurança da operação está baixa." : "Alerta: sua margem de segurança está baixa.",
     tone: "red" as const,
     explanation: "Antes de pensar em crescimento, o plano precisa proteger caixa, quitar dívidas elimináveis e montar reserva.",
   };
@@ -161,13 +187,17 @@ function buildActionSteps(params: {
   reserveAfterPlan: number;
   luxTotal: number;
   monthlyExpense: number;
+  profile: XrayProfile;
 }) {
   const steps: Array<{ title: string; detail: string; tone?: "green" | "red" | "primary" }> = [];
+  const isBusiness = params.profile === "business";
 
   if (params.availableCash <= 0) {
     steps.push({
       title: "1. Não distribua pagamentos ainda",
-      detail: "Sem caixa disponível, o melhor uso do raio-x é escolher quais contas ficam na primeira fila quando o dinheiro entrar.",
+      detail: isBusiness
+        ? "Sem caixa disponível, use o raio-x para definir a fila da operação antes de receber."
+        : "Sem caixa disponível, o melhor uso do raio-x é escolher quais contas ficam na primeira fila quando o dinheiro entrar.",
       tone: "red",
     });
   } else if (params.paidDebtsCount > 0) {
@@ -200,10 +230,10 @@ function buildActionSteps(params: {
 
   const luxPercent = params.monthlyExpense > 0 ? (params.luxTotal / params.monthlyExpense) * 100 : 0;
   steps.push({
-    title: "3. Procure cortes em Luxo primeiro",
+    title: isBusiness ? "3. Revise extras não essenciais" : "3. Procure cortes em Luxo primeiro",
     detail: luxPercent > 5
-      ? `Luxo representa ${luxPercent.toFixed(1)}% do mês. É o primeiro bloco para ajustar sem desmontar sua rotina.`
-      : "Luxo está baixo. Se precisar cortar, revise burocracias e assinaturas fixas com cuidado.",
+      ? `${isBusiness ? "Extras" : "Luxo"} representa ${luxPercent.toFixed(1)}% do mês. Revise estes itens antes de cortar ${isBusiness ? "operação essencial" : "contas essenciais"}.`
+      : `${isBusiness ? "Extras" : "Luxo"} está baixo. Se precisar cortar, revise compromissos fixos com cuidado.`,
     tone: luxPercent > 5 ? "primary" : "green",
   });
 
@@ -228,6 +258,7 @@ export default function FinancialXrayPanel({ monthId }: { monthId: number }) {
   const cardsQuery = trpc.cards.list.useQuery({ monthId });
   const incomeQuery = trpc.income.list.useQuery({ monthId });
   const balancesQuery = trpc.balances.list.useQuery({ monthId });
+  const orgsQuery = trpc.organizations.list.useQuery();
   const [availableCashInput, setAvailableCashInput] = useState("");
   const [ageInput, setAgeInput] = useState("35");
   const [equityInput, setEquityInput] = useState("5000.00");
@@ -240,6 +271,9 @@ export default function FinancialXrayPanel({ monthId }: { monthId: number }) {
   const availableCash = availableCashInput.trim() ? parseMoney(availableCashInput) : bankBalance;
   const age = Math.max(parseMoney(ageInput), 0);
   const currentEquity = Math.max(parseMoney(equityInput), 0);
+  const activeOrganization = orgsQuery.data?.organizations.find(org => org.id === orgsQuery.data?.activeOrganizationId);
+  const profile = detectProfile(activeOrganization?.name ?? "");
+  const isBusiness = profile === "business";
 
   const analysis = useMemo(() => {
     const allExpenses = cards.flatMap(card =>
@@ -276,15 +310,22 @@ export default function FinancialXrayPanel({ monthId }: { monthId: number }) {
         isFiscalPriority: isFiscalDebt(expense.name),
       }));
 
-    const buckets = allExpenses.reduce<Record<LifestyleBucket, { total: number; items: number }>>((acc, expense) => {
-      const bucket = classifyExpense(expense.category, expense.name);
-      acc[bucket].total += expense.total;
-      acc[bucket].items += 1;
+    const buckets = allExpenses.reduce<Record<LifestyleBucket, BucketSummary>>((acc, expense) => {
+      const classification = classifyExpense(expense.category, expense.name);
+      acc[classification.bucket].total += expense.total;
+      acc[classification.bucket].items += 1;
+      if (acc[classification.bucket].examples.length < 5) {
+        acc[classification.bucket].examples.push({
+          name: expense.name,
+          value: expense.total,
+          reason: classification.reason,
+        });
+      }
       return acc;
     }, {
-      Burocracia: { total: 0, items: 0 },
-      "Qualidade de Vida": { total: 0, items: 0 },
-      Luxo: { total: 0, items: 0 },
+      Burocracia: { total: 0, items: 0, examples: [] },
+      "Qualidade de Vida": { total: 0, items: 0, examples: [] },
+      Luxo: { total: 0, items: 0, examples: [] },
     });
 
     const snowball = buildSnowballPlan(debts, availableCash);
@@ -313,7 +354,7 @@ export default function FinancialXrayPanel({ monthId }: { monthId: number }) {
     };
   }, [availableCash, cards, currentEquity, income, age]);
 
-  const health = healthCopy(getHealthLevel(currentEquity, analysis.metrics.pms, analysis.metrics.pmr));
+  const health = healthCopy(getHealthLevel(currentEquity, analysis.metrics.pms, analysis.metrics.pmr), profile);
   const paidDebtsCount = analysis.snowball.plan.filter(item => item.status === "quitar").length;
   const actionSteps = buildActionSteps({
     availableCash,
@@ -323,6 +364,7 @@ export default function FinancialXrayPanel({ monthId }: { monthId: number }) {
     reserveAfterPlan: analysis.snowball.reserveAfterPlan,
     luxTotal: analysis.buckets.Luxo.total,
     monthlyExpense: analysis.monthlyExpense,
+    profile,
   });
   const xrayStatus = currentEquity >= analysis.metrics.pms
     ? "mínimo protegido"
@@ -339,6 +381,9 @@ export default function FinancialXrayPanel({ monthId }: { monthId: number }) {
             </h2>
             <h3 className="mt-3 max-w-3xl text-2xl font-bold text-white">{health.title}</h3>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-300">{health.explanation}</p>
+            <p className="mt-3 inline-flex rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-zinc-300">
+              Perfil detectado: <strong className="ml-1 text-white">{isBusiness ? "empresa/operação" : profile === "household" ? "casa/família" : "pessoal"}</strong>
+            </p>
           </div>
           <div className="grid grid-cols-1 gap-2 text-xs min-[420px]:grid-cols-3 lg:min-w-[520px]">
             <XrayInput label="Caixa disponível" value={availableCashInput} onChange={setAvailableCashInput} placeholder={bankBalance.toFixed(2)} />
@@ -356,7 +401,9 @@ export default function FinancialXrayPanel({ monthId }: { monthId: number }) {
               O que fazer agora
             </h3>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              Ordem prática para uma pessoa que não quer interpretar fórmula: pagar, proteger e depois crescer.
+              {isBusiness
+                ? "Ordem prática para operação: manter o negócio funcionando, evitar atraso crítico e preservar caixa."
+                : "Ordem prática para uma pessoa que não quer interpretar fórmula: pagar, proteger e depois crescer."}
             </p>
           </div>
           <div className="rounded-2xl border border-white/5 bg-black/20 px-3 py-2 text-xs text-muted-foreground">
@@ -372,17 +419,19 @@ export default function FinancialXrayPanel({ monthId }: { monthId: number }) {
       </section>
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
-        <MetricCard icon={CircleDollarSign} label="Seu custo de vida" value={formatBrl(analysis.monthlyExpense)} helper="Quanto este mês exige para manter o padrão atual." />
+        <MetricCard icon={CircleDollarSign} label={isBusiness ? "Custo da operação" : "Seu custo de vida"} value={formatBrl(analysis.monthlyExpense)} helper={isBusiness ? "Quanto este centro exige para fechar o mês." : "Quanto este mês exige para manter o padrão atual."} />
         <MetricCard icon={Landmark} label="Entradas do mês" value={formatBrl(analysis.expectedIncome)} helper={`Já recebido: ${formatBrl(analysis.receivedIncome)}.`} />
-        <MetricCard icon={ShieldCheck} label="Reserva mínima" value={xrayStatus} helper="A primeira meta é aguentar meses ruins sem se desesperar." tone={analysis.gaps.pms <= 0 ? "green" : "red"} />
+        <MetricCard icon={ShieldCheck} label="Reserva mínima" value={xrayStatus} helper={isBusiness ? "A primeira meta é atravessar atrasos de clientes sem travar a operação." : "A primeira meta é aguentar meses ruins sem se desesperar."} tone={analysis.gaps.pms <= 0 ? "green" : "red"} />
         <MetricCard icon={Snowflake} label="Credores elimináveis" value={`${paidDebtsCount}/${analysis.debts.length}`} helper={`Sobra como reserva: ${formatBrl(analysis.snowball.reserveAfterPlan)}`} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_1.4fr]">
         <section className="rounded-3xl border border-white/5 bg-zinc-900 p-4 sm:rounded-2xl">
-          <h3 className="text-xs font-semibold uppercase tracking-widest text-primary">Metas em português claro</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-widest text-primary">{isBusiness ? "Metas de caixa em português claro" : "Metas em português claro"}</h3>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            As fórmulas continuam visíveis, mas o mais importante é saber que decisão cada meta orienta.
+            {isBusiness
+              ? "Aqui as fórmulas são usadas como referência de fôlego financeiro para a operação, não como diagnóstico pessoal definitivo."
+              : "As fórmulas continuam visíveis, mas o mais importante é saber que decisão cada meta orienta."}
           </p>
 
           <div className="mt-4 space-y-2">
@@ -429,16 +478,41 @@ export default function FinancialXrayPanel({ monthId }: { monthId: number }) {
           const percent = analysis.monthlyExpense > 0 ? (value / analysis.monthlyExpense) * 100 : 0;
           return (
             <section key={bucket} className={`rounded-3xl border p-4 sm:rounded-2xl ${bucketTone(bucket)}`}>
-              <h3 className="text-sm font-semibold">{bucket}</h3>
-              <p className="mt-1 min-h-[42px] text-xs leading-5 opacity-80">{lifestyleDescription(bucket)}</p>
+              <h3 className="text-sm font-semibold">{bucketLabel(bucket, profile)}</h3>
+              <p className="mt-1 min-h-[42px] text-xs leading-5 opacity-80">{lifestyleDescription(bucket, profile)}</p>
               <div className="mt-4 flex items-end justify-between gap-3">
                 <span className="text-2xl font-bold">{formatBrl(value)}</span>
                 <span className="text-sm font-semibold">{percent.toFixed(1)}%</span>
+              </div>
+              <div className="mt-4 space-y-2">
+                {analysis.buckets[bucket].examples.length === 0 ? (
+                  <p className="text-xs opacity-70">Nenhum item neste grupo.</p>
+                ) : analysis.buckets[bucket].examples.map(example => (
+                  <div key={`${bucket}-${example.name}`} className="rounded-xl border border-white/10 bg-black/20 p-2 text-xs">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-semibold">{example.name}</span>
+                      <span className="shrink-0">{formatBrl(example.value)}</span>
+                    </div>
+                    <p className="mt-1 opacity-70">Motivo: {example.reason}.</p>
+                  </div>
+                ))}
               </div>
             </section>
           );
         })}
       </div>
+
+      <section className="rounded-3xl border border-white/5 bg-zinc-900 p-4 sm:rounded-2xl">
+        <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-primary">
+          <Tags className="h-4 w-4" />
+          Como o app está classificando
+        </h3>
+        <div className="mt-3 grid grid-cols-1 gap-2 text-xs leading-5 text-zinc-300 md:grid-cols-3">
+          <Note>{bucketLabel("Burocracia", profile)}: aluguel, impostos, energia, internet, dívidas, parcelas, seguros, equipamentos e retiradas combinadas.</Note>
+          <Note>{bucketLabel("Qualidade de Vida", profile)}: alimentação, combustível, saúde, cuidado, equipe, fornecedores e pessoas que sustentam a rotina.</Note>
+          <Note>{bucketLabel("Luxo", profile)}: itens sem palavra-chave reconhecida. Não quer dizer que está errado, quer dizer que precisa de revisão humana.</Note>
+        </div>
+      </section>
 
       <section className="rounded-3xl border border-white/5 bg-zinc-900 p-4 sm:rounded-2xl">
         <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-primary">
@@ -449,7 +523,7 @@ export default function FinancialXrayPanel({ monthId }: { monthId: number }) {
           <Note>Feira e combustível entram no custo de vida. Se estiverem marcados como cartão, o painel não trata como saída imediata de banco.</Note>
           <Note>Sobra depois da bola de neve não é dinheiro livre: é início de reserva até PMS e PMR estarem confortáveis.</Note>
           <Note>Receitas previstas são promessa. Para decidir pagamento hoje, use apenas o caixa que já está disponível.</Note>
-          <Note>Se o mês estiver apertado, Luxo corta primeiro; depois renegocie Burocracia. Qualidade de Vida só deve cair quando não houver alternativa.</Note>
+          <Note>{isBusiness ? "Em empresa, extras não classificados devem ser revisados antes de cortar equipe, impostos ou operação básica." : "Se o mês estiver apertado, Luxo corta primeiro; depois renegocie Burocracia. Qualidade de Vida só deve cair quando não houver alternativa."}</Note>
         </div>
       </section>
     </div>
