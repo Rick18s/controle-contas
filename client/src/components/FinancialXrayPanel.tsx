@@ -259,6 +259,7 @@ export default function FinancialXrayPanel({ monthId }: { monthId: number }) {
   const incomeQuery = trpc.income.list.useQuery({ monthId });
   const balancesQuery = trpc.balances.list.useQuery({ monthId });
   const orgsQuery = trpc.organizations.list.useQuery();
+  const analyticsQuery = trpc.months.getAnalytics.useQuery();
   const [availableCashInput, setAvailableCashInput] = useState("");
   const [ageInput, setAgeInput] = useState("35");
   const [equityInput, setEquityInput] = useState("5000.00");
@@ -266,9 +267,13 @@ export default function FinancialXrayPanel({ monthId }: { monthId: number }) {
   const cards = cardsQuery.data || [];
   const income = incomeQuery.data || [];
   const balances = balancesQuery.data || [];
+  const analytics = analyticsQuery.data || [];
+  const currentMonthAnalytics = analytics.find(item => item.monthId === monthId);
+  const carryover = currentMonthAnalytics?.previousCarryover || 0;
 
   const bankBalance = balances.reduce((sum, balance) => sum + parseMoney(balance.balance), 0);
-  const availableCash = availableCashInput.trim() ? parseMoney(availableCashInput) : bankBalance;
+  const availableNow = bankBalance + carryover;
+  const availableCash = availableCashInput.trim() ? parseMoney(availableCashInput) : availableNow;
   const age = Math.max(parseMoney(ageInput), 0);
   const currentEquity = Math.max(parseMoney(equityInput), 0);
   const activeOrganization = orgsQuery.data?.organizations.find(org => org.id === orgsQuery.data?.activeOrganizationId);
@@ -299,6 +304,7 @@ export default function FinancialXrayPanel({ monthId }: { monthId: number }) {
       return sum + (receivedValue > 0 ? receivedValue : entry.received === 1 ? parseMoney(entry.value) : 0);
     }, 0);
     const expectedIncome = income.reduce((sum, entry) => sum + parseMoney(entry.value), 0);
+    const pendingIncome = Math.max(expectedIncome - receivedIncome, 0);
 
     const debts = allExpenses
       .filter(expense => expense.remaining > 0 && isCreditDebt(expense.category, expense.name))
@@ -341,6 +347,7 @@ export default function FinancialXrayPanel({ monthId }: { monthId: number }) {
       paidExpense,
       receivedIncome,
       expectedIncome,
+      pendingIncome,
       debts,
       buckets,
       snowball,
@@ -369,6 +376,7 @@ export default function FinancialXrayPanel({ monthId }: { monthId: number }) {
   const xrayStatus = currentEquity >= analysis.metrics.pms
     ? "mínimo protegido"
     : `${formatBrl(analysis.gaps.pms)} até o mínimo`;
+  const projectedAfterPendingIncome = availableNow + analysis.pendingIncome - analysis.pendingExpense;
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -386,7 +394,7 @@ export default function FinancialXrayPanel({ monthId }: { monthId: number }) {
             </p>
           </div>
           <div className="grid grid-cols-1 gap-2 text-xs min-[420px]:grid-cols-3 lg:min-w-[520px]">
-            <XrayInput label="Caixa disponível" value={availableCashInput} onChange={setAvailableCashInput} placeholder={bankBalance.toFixed(2)} />
+            <XrayInput label="Caixa disponível" value={availableCashInput} onChange={setAvailableCashInput} placeholder={availableNow.toFixed(2)} />
             <XrayInput label="Idade referência" value={ageInput} onChange={setAgeInput} placeholder="35" />
             <XrayInput label="Patrimônio atual" value={equityInput} onChange={setEquityInput} placeholder="5000.00" />
           </div>
@@ -420,10 +428,46 @@ export default function FinancialXrayPanel({ monthId }: { monthId: number }) {
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
         <MetricCard icon={CircleDollarSign} label={isBusiness ? "Custo da operação" : "Seu custo de vida"} value={formatBrl(analysis.monthlyExpense)} helper={isBusiness ? "Quanto este centro exige para fechar o mês." : "Quanto este mês exige para manter o padrão atual."} />
-        <MetricCard icon={Landmark} label="Entradas do mês" value={formatBrl(analysis.expectedIncome)} helper={`Já recebido: ${formatBrl(analysis.receivedIncome)}.`} />
+        <MetricCard icon={Landmark} label="Entradas do mês" value={formatBrl(analysis.expectedIncome)} helper={`Recebido: ${formatBrl(analysis.receivedIncome)}. Falta: ${formatBrl(analysis.pendingIncome)}.`} />
         <MetricCard icon={ShieldCheck} label="Reserva mínima" value={xrayStatus} helper={isBusiness ? "A primeira meta é atravessar atrasos de clientes sem travar a operação." : "A primeira meta é aguentar meses ruins sem se desesperar."} tone={analysis.gaps.pms <= 0 ? "green" : "red"} />
         <MetricCard icon={Snowflake} label="Credores elimináveis" value={`${paidDebtsCount}/${analysis.debts.length}`} helper={`Sobra como reserva: ${formatBrl(analysis.snowball.reserveAfterPlan)}`} />
       </div>
+
+      <section className="rounded-3xl border border-white/5 bg-zinc-900 p-4 sm:rounded-2xl">
+        <h3 className="text-xs font-semibold uppercase tracking-widest text-primary">Conferência dos números</h3>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+          Esta área usa a mesma lógica da visão geral para você conferir por que o Raio-X chegou nesses valores.
+        </p>
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <ReconcileCard
+            title="Caixa disponível"
+            rows={[
+              { label: "Saldos bancários", value: bankBalance },
+              { label: "Saldo anterior", value: carryover },
+              { label: "Disponível agora", value: availableNow, strong: true },
+            ]}
+          />
+          <ReconcileCard
+            title="Entradas"
+            rows={[
+              { label: "Já recebido", value: analysis.receivedIncome },
+              { label: "Ainda previsto", value: analysis.pendingIncome },
+              { label: "Total previsto", value: analysis.expectedIncome, strong: true },
+            ]}
+          />
+          <ReconcileCard
+            title="Contas"
+            rows={[
+              { label: "Já pago", value: analysis.paidExpense },
+              { label: "Ainda falta pagar", value: analysis.pendingExpense },
+              { label: "Total do mês", value: analysis.monthlyExpense, strong: true },
+            ]}
+          />
+        </div>
+        <div className={`mt-3 rounded-2xl border px-4 py-3 text-sm ${projectedAfterPendingIncome >= 0 ? "border-green-500/20 bg-green-950/20 text-green-100" : "border-red-500/20 bg-red-950/20 text-red-100"}`}>
+          Se todas as entradas pendentes caírem e todas as contas abertas forem pagas, o mês termina em <strong>{formatBrl(projectedAfterPendingIncome)}</strong>.
+        </div>
+      </section>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_1.4fr]">
         <section className="rounded-3xl border border-white/5 bg-zinc-900 p-4 sm:rounded-2xl">
@@ -604,6 +648,28 @@ function ActionStep({
           <div className="text-sm font-semibold">{title}</div>
           <p className="mt-1 text-xs leading-5 opacity-80">{detail}</p>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ReconcileCard({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: Array<{ label: string; value: number; strong?: boolean }>;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/5 bg-black/20 p-3">
+      <h4 className="text-sm font-semibold text-white">{title}</h4>
+      <div className="mt-3 space-y-2">
+        {rows.map(row => (
+          <div key={row.label} className={`flex items-center justify-between gap-3 rounded-xl px-2 py-1.5 text-xs ${row.strong ? "bg-white/5" : ""}`}>
+            <span className="text-zinc-400">{row.label}</span>
+            <span className={`font-bold ${row.strong ? "text-primary" : "text-zinc-100"}`}>{formatBrl(row.value)}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
