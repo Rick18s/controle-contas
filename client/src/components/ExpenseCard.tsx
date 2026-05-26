@@ -447,7 +447,7 @@ function ItemRow({ item, onEdit, onRefresh, onBalancesRefresh, onDelete, balance
       </div>
 
       <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
-        <DialogContent className="w-[calc(100vw-1rem)] rounded-3xl border border-border bg-card text-card-foreground sm:max-w-md">
+        <DialogContent className="border border-border bg-card text-card-foreground sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-primary font-mono text-sm uppercase tracking-widest">Registrar pagamento</DialogTitle>
           </DialogHeader>
@@ -657,7 +657,7 @@ function ExpenseItemDialog({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
-      <DialogContent className="w-[calc(100vw-1rem)] rounded-3xl border border-border bg-card text-card-foreground sm:max-w-2xl">
+      <DialogContent className="border border-border bg-card text-card-foreground sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="text-primary font-mono text-sm uppercase tracking-widest">{title}</DialogTitle>
         </DialogHeader>

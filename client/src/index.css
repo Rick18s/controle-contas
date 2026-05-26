@@ -54,6 +54,7 @@
   --bg-surface: #121212;
   --bg-card: #18181b; /* zinc-900 */
   --border-light: rgba(255, 255, 255, 0.05);
+  --mobile-nav-height: 4.75rem;
 }
 
 @layer base {
@@ -109,12 +110,35 @@
   }
 }
 
+@media (max-width: 380px) {
+  .container {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  :root {
+    --mobile-nav-height: 4.25rem;
+  }
+}
+
 .pb-safe {
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.75rem);
 }
 
 .bottom-safe {
   bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
+}
+
+.app-mobile-main {
+  padding-bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom, 0px) + 1.75rem);
+}
+
+.app-mobile-nav {
+  min-height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom, 0px));
+}
+
+.app-fab {
+  bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom, 0px) + 0.75rem);
 }
 
 /* Flat Clean Style - Organizze Inspired */

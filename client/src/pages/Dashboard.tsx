@@ -467,7 +467,7 @@ export default function Dashboard() {
       </header>
 
       {/* Main Content */}
-      <main className="container space-y-4 py-4 pb-28 sm:space-y-6 sm:py-6 sm:pb-6">
+      <main className="app-mobile-main container space-y-4 py-4 sm:space-y-6 sm:py-6 sm:pb-6">
         {!selectedMonthId ? (
           <div className="flex flex-col items-center justify-center py-20 space-y-6">
             <p className="text-gray-500 font-mono text-sm">Nenhum mês selecionado</p>
@@ -536,7 +536,7 @@ export default function Dashboard() {
 
               <TabsContent value="balances" className="space-y-6 focus-visible:outline-none focus-visible:ring-0 mt-0">
                 {activeTab === "balances" && (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
                     <BankBalances monthId={selectedMonthId} />
                     <CurrencyCalculator />
                   </div>
@@ -566,7 +566,7 @@ export default function Dashboard() {
       />
 
       <Dialog open={showCopyDialog} onOpenChange={setShowCopyDialog}>
-        <DialogContent className="w-[calc(100vw-1rem)] rounded-3xl border border-border bg-card text-card-foreground sm:max-w-md">
+        <DialogContent className="border border-border bg-card text-card-foreground sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-primary font-mono text-sm uppercase tracking-widest">Copiar mês</DialogTitle>
           </DialogHeader>
@@ -610,7 +610,7 @@ export default function Dashboard() {
       </Dialog>
 
       <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
-        <DialogContent className="w-[calc(100vw-1rem)] rounded-3xl border border-border bg-card text-card-foreground sm:max-w-2xl">
+        <DialogContent className="border border-border bg-card text-card-foreground sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="text-primary font-mono text-sm uppercase tracking-widest">
               Colar informações do mês
@@ -669,12 +669,12 @@ export default function Dashboard() {
           )}
           <Button
             onClick={() => setShowQuickAddDialog(true)}
-            className="fixed bottom-[5.75rem] right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-blue-600 p-0 text-white shadow-2xl shadow-purple-500/30 transition-transform hover:scale-105 hover:shadow-purple-500/50 active:scale-95 sm:bottom-6 sm:right-6 sm:h-14 sm:w-14"
+            className="app-fab fixed right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-blue-600 p-0 text-white shadow-2xl shadow-purple-500/30 transition-transform hover:scale-105 hover:shadow-purple-500/50 active:scale-95 sm:bottom-6 sm:right-6 sm:h-14 sm:w-14"
             title="Adição Inteligente"
           >
             <Sparkles className="h-5 w-5 sm:h-6 sm:w-6" />
           </Button>
-          <nav className="pb-safe fixed inset-x-3 bottom-0 z-40 rounded-t-3xl border border-white/10 border-b-0 bg-zinc-950/95 px-2 pt-2 shadow-2xl shadow-black/50 backdrop-blur sm:hidden">
+          <nav className="app-mobile-nav fixed inset-x-2 bottom-0 z-40 rounded-t-3xl border border-white/10 border-b-0 bg-zinc-950/95 px-2 pt-2 shadow-2xl shadow-black/50 backdrop-blur sm:hidden min-[420px]:inset-x-3">
             <div className="grid grid-cols-5 gap-1">
               {mobileTabs.map(item => {
                 const Icon = item.icon;
@@ -684,7 +684,7 @@ export default function Dashboard() {
                     key={item.value}
                     type="button"
                     onClick={() => setActiveTab(item.value)}
-                    className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-[10px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/60 ${selected ? "bg-primary/15 text-primary" : "text-zinc-500 hover:text-white"}`}
+                    className={`flex min-h-12 flex-col items-center justify-center gap-1 rounded-2xl text-[9px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/60 min-[380px]:min-h-14 min-[380px]:text-[10px] ${selected ? "bg-primary/15 text-primary" : "text-zinc-500 hover:text-white"}`}
                   >
                     <Icon className="h-5 w-5" />
                     <span>{item.label}</span>
@@ -741,7 +741,7 @@ function ExpenseCardsSection({ monthId }: { monthId: number }) {
       </div>
 
       <Dialog open={showNewCardDialog} onOpenChange={setShowNewCardDialog}>
-        <DialogContent className="w-[calc(100vw-1rem)] rounded-3xl border border-border bg-card text-card-foreground sm:max-w-md">
+        <DialogContent className="border border-border bg-card text-card-foreground sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-primary font-mono text-sm uppercase tracking-widest">Novo card</DialogTitle>
           </DialogHeader>

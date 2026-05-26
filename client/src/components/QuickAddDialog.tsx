@@ -55,7 +55,7 @@ export default function QuickAddDialog({ open, onOpenChange, monthId, onSuccess 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px] border-none shadow-2xl bg-slate-900 text-white">
+      <DialogContent className="border border-white/10 bg-slate-900 text-white shadow-2xl sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             <Sparkles className="w-5 h-5 text-amber-400" />
@@ -75,7 +75,7 @@ export default function QuickAddDialog({ open, onOpenChange, monthId, onSuccess 
               if (e.key === "Enter" && !quickAdd.isPending) handleQuickAdd();
             }}
             placeholder="Ex: Almoço com cliente 45.90"
-            className="text-lg py-6 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 focus-visible:ring-amber-500/50"
+            className="h-12 bg-slate-800 py-3 text-base text-white placeholder:text-slate-500 focus-visible:ring-primary/50 sm:py-6 sm:text-lg"
             disabled={quickAdd.isPending}
           />
           <p className="mt-3 text-[11px] text-slate-500">
@@ -97,7 +97,7 @@ export default function QuickAddDialog({ open, onOpenChange, monthId, onSuccess 
           <Button 
             onClick={handleQuickAdd} 
             disabled={!text.trim() || quickAdd.isPending}
-            className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold text-base transition-colors"
+            className="h-12 w-full bg-primary text-white transition-colors hover:bg-primary/90"
           >
             {quickAdd.isPending ? (
               <>

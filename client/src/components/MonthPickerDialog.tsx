@@ -30,7 +30,7 @@ export default function MonthPickerDialog({ open, existingLabels, onClose, onCre
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent className="bg-card text-card-foreground border border-border sm:max-w-md">
+      <DialogContent className="border border-border bg-card text-card-foreground sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-primary font-mono text-sm uppercase tracking-widest">
             Criar Novo Mês
@@ -42,16 +42,16 @@ export default function MonthPickerDialog({ open, existingLabels, onClose, onCre
           <div className="space-y-1">
             <label className="text-[10px] font-mono text-gray-500 uppercase">Ano</label>
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setYear(y => y - 1)} className="text-primary h-7 w-7 p-0">−</Button>
+              <Button variant="ghost" size="sm" onClick={() => setYear(y => y - 1)} className="h-10 w-10 p-0 text-primary sm:h-7 sm:w-7">−</Button>
               <span className="flex-1 text-center font-mono font-bold text-white">{year}</span>
-              <Button variant="ghost" size="sm" onClick={() => setYear(y => y + 1)} className="text-primary h-7 w-7 p-0">+</Button>
+              <Button variant="ghost" size="sm" onClick={() => setYear(y => y + 1)} className="h-10 w-10 p-0 text-primary sm:h-7 sm:w-7">+</Button>
             </div>
           </div>
 
           {/* Month grid */}
           <div className="space-y-1">
             <label className="text-[10px] font-mono text-gray-500 uppercase">Mês</label>
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-2 gap-2 min-[360px]:grid-cols-3 sm:gap-1.5">
               {MONTH_NAMES.map((name, idx) => {
                 const m = idx + 1;
                 const lbl = `${year}-${String(m).padStart(2, '0')}`;
@@ -62,7 +62,7 @@ export default function MonthPickerDialog({ open, existingLabels, onClose, onCre
                     key={m}
                     onClick={() => !exists && setMonth(m)}
                     disabled={exists}
-                    className={`py-1.5 rounded text-[11px] font-mono transition-all border ${
+                    className={`min-h-11 rounded border py-1.5 text-[11px] font-mono transition-all sm:min-h-0 ${
                       selected
                         ? 'border-cyan-400 text-primary bg-cyan-950/50'
                         : exists
@@ -84,12 +84,12 @@ export default function MonthPickerDialog({ open, existingLabels, onClose, onCre
           </div>
         </div>
 
-        <DialogFooter className="gap-2">
-          <Button variant="ghost" onClick={onClose} className="text-gray-400 text-xs">Cancelar</Button>
+        <DialogFooter className="grid grid-cols-1 gap-2 sm:flex">
+          <Button variant="ghost" onClick={onClose} className="h-11 text-xs text-gray-400">Cancelar</Button>
           <Button
             onClick={handleCreate}
             disabled={alreadyExists}
-            className="text-xs"
+            className="h-11 text-xs"
             
           >
             {alreadyExists ? "Já existe" : "Criar Mês"}

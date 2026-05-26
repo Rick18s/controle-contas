@@ -64,7 +64,7 @@ export default function AccountAccessBar({ isAdmin, onOrganizationChange }: { is
   };
 
   return (
-    <section className="w-full rounded-lg border border-border bg-card glass-card p-3 hover:border-primary/50 sm:w-auto">
+    <section className="w-full rounded-2xl border border-border bg-card p-3 shadow-sm hover:border-primary/50 sm:w-auto">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-2 min-w-0">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-cyan-500/40 bg-primary/10 text-primary">
@@ -77,7 +77,7 @@ export default function AccountAccessBar({ isAdmin, onOrganizationChange }: { is
               onValueChange={(val) => setActiveOrg.mutate({ organizationId: Number(val) })}
               disabled={setActiveOrg.isPending || organizations.length === 0}
             >
-              <SelectTrigger className="h-[34px] w-full bg-background text-xs font-mono sm:min-w-[220px]">
+              <SelectTrigger className="h-11 w-full rounded-xl bg-background text-xs font-mono sm:h-[34px] sm:min-w-[220px]">
                 <SelectValue placeholder="Selecione uma organização" />
               </SelectTrigger>
               <SelectContent>
@@ -91,37 +91,37 @@ export default function AccountAccessBar({ isAdmin, onOrganizationChange }: { is
 
         <div className="flex flex-wrap items-center gap-2 sm:justify-end">
           {isAdmin && (
-            <Button variant="ghost" size="sm" onClick={() => setShowCreateOrg(true)} className="h-8 px-2 text-primary hover:text-primary/80 text-xs gap-1">
+            <Button variant="ghost" size="sm" onClick={() => setShowCreateOrg(true)} className="h-10 rounded-xl px-2 text-xs text-primary hover:text-primary/80 sm:h-8">
               <Plus className="h-3 w-3" /> Organização
             </Button>
           )}
-          <Button variant="ghost" size="sm" onClick={() => setShowPassword(true)} className="h-8 px-2 text-primary hover:text-primary/80 text-xs gap-1">
+          <Button variant="ghost" size="sm" onClick={() => setShowPassword(true)} className="h-10 rounded-xl px-2 text-xs text-primary hover:text-primary/80 sm:h-8">
             <KeyRound className="h-3 w-3" /> Minha senha
           </Button>
         </div>
       </div>
 
       <Dialog open={showCreateOrg} onOpenChange={setShowCreateOrg}>
-        <DialogContent className="bg-card text-card-foreground border border-border sm:max-w-md">
+        <DialogContent className="border border-border bg-card text-card-foreground sm:max-w-md">
           <DialogHeader><DialogTitle className="text-primary font-mono text-sm uppercase tracking-widest">Nova organização</DialogTitle></DialogHeader>
-          <input className="bg-background/50 border border-border rounded px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-cyan-400" value={newOrgName} onChange={event => setNewOrgName(event.target.value)} placeholder="Ex: Agência, Loja, Cliente" />
-          <DialogFooter className="gap-2">
-            <Button variant="ghost" onClick={() => setShowCreateOrg(false)} className="text-gray-400 text-xs">Cancelar</Button>
-            <Button onClick={handleCreateOrg} disabled={createOrg.isPending} className="text-xs" >Criar</Button>
+          <input className="h-11 rounded-xl border border-border bg-background/50 px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-cyan-400" value={newOrgName} onChange={event => setNewOrgName(event.target.value)} placeholder="Ex: Agência, Loja, Cliente" />
+          <DialogFooter className="grid grid-cols-1 gap-2 sm:flex">
+            <Button variant="ghost" onClick={() => setShowCreateOrg(false)} className="h-11 text-xs text-gray-400">Cancelar</Button>
+            <Button onClick={handleCreateOrg} disabled={createOrg.isPending} className="h-11 text-xs" >Criar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={showPassword} onOpenChange={setShowPassword}>
-        <DialogContent className="bg-card text-card-foreground border border-border sm:max-w-md">
+        <DialogContent className="border border-border bg-card text-card-foreground sm:max-w-md">
           <DialogHeader><DialogTitle className="text-primary font-mono text-sm uppercase tracking-widest">Alterar senha</DialogTitle></DialogHeader>
           <div className="space-y-2">
-            <input className="w-full bg-background/50 border border-border rounded px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-cyan-400" type="password" value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} placeholder="Senha atual" />
-            <input className="w-full bg-background/50 border border-border rounded px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-cyan-400" type="password" value={newPassword} onChange={event => setNewPassword(event.target.value)} placeholder="Nova senha" />
+            <input className="h-11 w-full rounded-xl border border-border bg-background/50 px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-cyan-400" type="password" value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} placeholder="Senha atual" />
+            <input className="h-11 w-full rounded-xl border border-border bg-background/50 px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-cyan-400" type="password" value={newPassword} onChange={event => setNewPassword(event.target.value)} placeholder="Nova senha" />
           </div>
-          <DialogFooter className="gap-2">
-            <Button variant="ghost" onClick={() => setShowPassword(false)} className="text-gray-400 text-xs">Cancelar</Button>
-            <Button onClick={handleChangePassword} disabled={changePassword.isPending} className="text-xs" >Alterar senha</Button>
+          <DialogFooter className="grid grid-cols-1 gap-2 sm:flex">
+            <Button variant="ghost" onClick={() => setShowPassword(false)} className="h-11 text-xs text-gray-400">Cancelar</Button>
+            <Button onClick={handleChangePassword} disabled={changePassword.isPending} className="h-11 text-xs" >Alterar senha</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

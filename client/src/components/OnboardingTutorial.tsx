@@ -76,7 +76,7 @@ export default function OnboardingTutorial() {
       </Button>
 
       <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) closeTutorial(); else setOpen(true); }}>
-        <DialogContent className="bg-card text-card-foreground border border-border sm:max-w-xl">
+        <DialogContent className="border border-border bg-card text-card-foreground sm:max-w-xl">
           <DialogHeader>
             <DialogTitle className="text-primary font-mono text-sm uppercase tracking-widest">
               Tutorial rápido
@@ -112,15 +112,15 @@ export default function OnboardingTutorial() {
             </div>
           </div>
 
-          <DialogFooter className="gap-2">
-            <Button variant="ghost" onClick={closeTutorial} className="text-gray-400 text-xs">
+          <DialogFooter className="grid grid-cols-1 gap-2 sm:flex">
+            <Button variant="ghost" onClick={closeTutorial} className="h-11 text-xs text-gray-400">
               Pular
             </Button>
             <Button
               variant="ghost"
               onClick={() => setStepIndex(Math.max(stepIndex - 1, 0))}
               disabled={stepIndex === 0}
-              className="text-xs"
+              className="h-11 text-xs"
             >
               Voltar
             </Button>
@@ -129,7 +129,7 @@ export default function OnboardingTutorial() {
                 if (isLastStep) closeTutorial();
                 else setStepIndex(stepIndex + 1);
               }}
-              className="text-xs gap-2"
+              className="h-11 gap-2 text-xs"
             >
               {isLastStep && <CheckCircle2 className="h-4 w-4" />}
               {isLastStep ? "Começar" : "Próximo"}

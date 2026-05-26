@@ -206,7 +206,7 @@ export default function IncomePanel({ monthId }: { monthId: number }) {
       </div>
 
       <Dialog open={Boolean(receiptTarget)} onOpenChange={(open) => { if (!open) setReceiptTarget(null); }}>
-        <DialogContent className="w-[calc(100vw-1rem)] rounded-3xl border border-border bg-card text-card-foreground sm:max-w-md">
+        <DialogContent className="border border-border bg-card text-card-foreground sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-primary font-mono text-sm uppercase tracking-widest">Receber entrada</DialogTitle>
           </DialogHeader>
@@ -216,7 +216,7 @@ export default function IncomePanel({ monthId }: { monthId: number }) {
             </p>
             {receiptTarget && (
               <div className="space-y-3 rounded border border-border bg-background/40 p-3 text-xs font-mono">
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-3">
                   <div>
                     <span className="block text-muted-foreground">Previsto</span>
                     <strong className="text-white">{formatBrl(parseMoney(receiptTarget.value))}</strong>
@@ -376,7 +376,7 @@ function IncomeEntryDialog({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
-      <DialogContent className="w-[calc(100vw-1rem)] rounded-3xl border border-border bg-card text-card-foreground sm:max-w-md">
+      <DialogContent className="border border-border bg-card text-card-foreground sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-primary font-mono text-sm uppercase tracking-widest">{title}</DialogTitle>
         </DialogHeader>
