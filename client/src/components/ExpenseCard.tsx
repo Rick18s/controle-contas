@@ -479,6 +479,7 @@ function ExpenseItemDialog({
   const [dueDate, setDueDate] = useState(item?.dueDate || "");
   const [value, setValue] = useState(item?.value || "0.00");
   const [paidValue, setPaidValue] = useState(item?.paidValue || "0.00");
+  const [paymentNow, setPaymentNow] = useState("");
   const [paidAccountName, setPaidAccountName] = useState(item?.paidAccountName || "");
   const [status, setStatus] = useState<"pago" | "parcial" | "pendente">(item?.status || "pendente");
   const [priority, setPriority] = useState(item ? getItemPriority(item.name) : "none");
@@ -497,6 +498,7 @@ function ExpenseItemDialog({
     setDueDate(item?.dueDate || "");
     setValue(item?.value || "0.00");
     setPaidValue(item?.paidValue || "0.00");
+    setPaymentNow("");
     setPaidAccountName(item?.paidAccountName || "");
     setStatus(item?.status || "pendente");
     setPriority(item ? getItemPriority(item.name) : "none");
@@ -514,14 +516,30 @@ function ExpenseItemDialog({
     setStatus(paidAmount >= parseMoney(nextValue) ? "pago" : "parcial");
   };
 
+  const setIncrementalPayment = (nextPaymentNow: string) => {
+    setPaymentNow(nextPaymentNow);
+    const currentPaid = item ? getPaidAmount(item) : 0;
+    const nextPaidAmount = currentPaid + parseMoney(nextPaymentNow);
+    if (nextPaidAmount <= 0) {
+      setStatus(item?.status || "pendente");
+      return;
+    }
+    if (!paidAccountName && balances[0]?.accountName) setPaidAccountName(balances[0].accountName);
+    setStatus(nextPaidAmount >= parseMoney(value) ? "pago" : "parcial");
+  };
+
   const handleSubmit = async () => {
-    const paidAmount = parseMoney(paidValue);
+    const currentPaidAmount = item ? getPaidAmount(item) : 0;
+    const paymentNowAmount = parseMoney(paymentNow);
+    const paidAmount = item
+      ? Math.min(parseMoney(value), currentPaidAmount + paymentNowAmount)
+      : parseMoney(paidValue);
     const accountName = paidAccountName.trim();
     if (!name.trim()) {
       toast.error("Digite o nome da despesa");
       return;
     }
-    if (paidAmount > 0 && !accountName) {
+    if ((item ? paymentNowAmount > 0 : paidAmount > 0) && !accountName) {
       toast.error("Informe de qual banco saiu o pagamento");
       return;
     }
@@ -530,27 +548,45 @@ function ExpenseItemDialog({
       name,
       dueDate,
       value: value || "0.00",
-      paidValue: paidAmount > 0 ? paidValue : "0.00",
+      paidValue: paidAmount > 0 ? paidAmount.toFixed(2) : "0.00",
       paidAccountName: accountName,
-      status,
+      status: paidAmount <= 0 ? "pendente" : paidAmount >= parseMoney(value) ? "pago" : "parcial",
       priority,
     };
 
     if (item) {
-      updateItem.mutate({
+      const updatePayload: {
+        id: number;
+        name: string;
+        dueDate: string;
+        value: string;
+        paidValue?: string;
+        paidAccountName?: string | null;
+        status?: "pago" | "parcial" | "pendente";
+      } = {
         id: item.id,
         name: withPriority(payload.name, payload.priority),
         dueDate: payload.dueDate,
         value: payload.value,
-        paidValue: payload.paidValue,
-        paidAccountName: paidAmount > 0 ? accountName : null,
-        status: payload.status,
-      });
+      };
+
+      if (paymentNowAmount > 0) {
+        updatePayload.paidValue = payload.paidValue;
+        updatePayload.paidAccountName = paidAmount > 0 ? (accountName || item.paidAccountName || null) : null;
+        updatePayload.status = payload.status;
+      }
+
+      updateItem.mutate(updatePayload);
       return;
     }
 
     await onSave(payload);
   };
+
+  const visiblePaymentAmount = item ? parseMoney(paymentNow) : parseMoney(paidValue);
+  const projectedPaidAmount = item
+    ? Math.min(parseMoney(value), getPaidAmount(item) + visiblePaymentAmount)
+    : parseMoney(paidValue);
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
@@ -594,15 +630,22 @@ function ExpenseItemDialog({
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-[10px] uppercase text-muted-foreground">Pago (R$)</Label>
+            <Label className="text-[10px] uppercase text-muted-foreground">
+              {item ? "Pagar agora (R$)" : "Pago (R$)"}
+            </Label>
             <input
               className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
               type="number"
               step="0.01"
-              value={paidValue}
-              onChange={event => setPaidAndStatus(event.target.value)}
+              value={item ? paymentNow : paidValue}
+              onChange={event => item ? setIncrementalPayment(event.target.value) : setPaidAndStatus(event.target.value)}
               placeholder="0.00"
             />
+            {item && (
+              <p className="text-[10px] text-muted-foreground">
+                Já pago: {formatBrl(getPaidAmount(item))} · Após salvar: {formatBrl(projectedPaidAmount)}
+              </p>
+            )}
           </div>
           <div className="space-y-1">
             <Label className="text-[10px] uppercase text-muted-foreground">Prioridade</Label>
@@ -622,8 +665,10 @@ function ExpenseItemDialog({
               <div>
                 <p className="text-[10px] font-mono uppercase tracking-widest text-primary">De onde vai debitar</p>
                 <p className="text-xs text-muted-foreground">
-                  {parseMoney(paidValue) > 0
-                    ? `${formatBrl(parseMoney(paidValue))} será descontado do banco escolhido.`
+                  {visiblePaymentAmount > 0
+                    ? item
+                      ? `${formatBrl(visiblePaymentAmount)} será somado ao pagamento atual.`
+                      : `${formatBrl(visiblePaymentAmount)} será descontado do banco escolhido.`
                     : "Informe um valor pago para escolher o banco."}
                 </p>
               </div>
@@ -638,9 +683,9 @@ function ExpenseItemDialog({
               onChange={setPaidAccountName}
               accounts={balances}
               label="Banco do pagamento"
-              placeholder={parseMoney(paidValue) > 0 ? "Ex: Inter, C6, Caixa" : "Sem pagamento"}
-              disabled={parseMoney(paidValue) <= 0}
-              helperText={parseMoney(paidValue) > 0 ? "Esse é o banco que será debitado ao salvar a despesa." : undefined}
+              placeholder={visiblePaymentAmount > 0 ? "Ex: Inter, C6, Caixa" : "Sem pagamento"}
+              disabled={visiblePaymentAmount <= 0}
+              helperText={visiblePaymentAmount > 0 ? "Esse é o banco que será debitado ao salvar a despesa." : undefined}
             />
           </div>
         </div>
