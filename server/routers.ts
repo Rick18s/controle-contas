@@ -679,6 +679,20 @@ export const appRouter = router({
         await requireMonthInActiveOrganization(ctx, input.sourceMonthId);
         return db.copyMonthData(ctx.user.id, input.sourceMonthId, input, organization.id);
       }),
+    resetCopied: protectedProcedure
+      .input(z.object({
+        monthId: z.number(),
+        keepFixedExpenseValues: z.boolean().default(true),
+        zeroVariableExpenseValues: z.boolean().default(true),
+        resetIncomeValues: z.boolean().default(true),
+        keepBankBalances: z.boolean().default(true),
+        clearBankTransactions: z.boolean().default(true),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await requireCanEdit(ctx);
+        await requireMonthInActiveOrganization(ctx, input.monthId);
+        return db.resetCopiedMonth(input.monthId, input);
+      }),
     importText: protectedProcedure
       .input(z.object({ monthId: z.number(), text: z.string().min(1), replaceExisting: z.boolean().default(true) }))
       .mutation(async ({ ctx, input }) => {

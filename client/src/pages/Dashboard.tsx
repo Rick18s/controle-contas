@@ -20,6 +20,7 @@ import {
   Wallet,
   Landmark,
   BrainCircuit,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import ExpenseCard from "@/components/ExpenseCard";
@@ -84,6 +85,7 @@ export default function Dashboard() {
   const [showMonthPicker, setShowMonthPicker] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [showCopyDialog, setShowCopyDialog] = useState(false);
+  const [showResetCopiedDialog, setShowResetCopiedDialog] = useState(false);
   const [showQuickAddDialog, setShowQuickAddDialog] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [importText, setImportText] = useState("");
@@ -96,6 +98,11 @@ export default function Dashboard() {
   const [copyBalances, setCopyBalances] = useState(true);
   const [copyReplaceExisting, setCopyReplaceExisting] = useState(true);
   const [copyResetPaymentStatus, setCopyResetPaymentStatus] = useState(false);
+  const [resetKeepFixedValues, setResetKeepFixedValues] = useState(true);
+  const [resetZeroVariableValues, setResetZeroVariableValues] = useState(true);
+  const [resetIncomeValues, setResetIncomeValues] = useState(true);
+  const [resetKeepBankBalances, setResetKeepBankBalances] = useState(true);
+  const [resetClearBankTransactions, setResetClearBankTransactions] = useState(true);
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -104,6 +111,7 @@ export default function Dashboard() {
   }, [loading, isAuthenticated, setLocation]);
 
   const claimSeed = trpc.months.claimSeedData.useMutation();
+  const utils = trpc.useUtils();
   const monthsQuery = trpc.months.list.useQuery(undefined, { enabled: isAuthenticated });
   const createMonth = trpc.months.create.useMutation({
     onSuccess: (data) => {
@@ -121,6 +129,19 @@ export default function Dashboard() {
       toast.success("Mês copiado com sucesso");
     },
     onError: (error) => toast.error(error.message || "Não foi possível copiar o mês"),
+  });
+  const resetCopiedMonth = trpc.months.resetCopied.useMutation({
+    onSuccess: async (result) => {
+      setShowResetCopiedDialog(false);
+      await Promise.all([
+        exportCardsQuery.refetch(),
+        exportIncomeQuery.refetch(),
+        exportBalancesQuery.refetch(),
+        utils.months.getAnalytics.invalidate(),
+      ]);
+      toast.success(`Mês preparado: ${result.fixedKept} fixos mantidos e ${result.variableZeroed} variáveis zerados`);
+    },
+    onError: (error) => toast.error(error.message || "Não foi possível preparar o mês"),
   });
   const importMonthText = trpc.months.importText.useMutation({
     onSuccess: (result) => {
@@ -292,6 +313,23 @@ export default function Dashboard() {
     });
   };
 
+  const handleResetCopiedMonth = () => {
+    if (!selectedMonthId || !selectedMonth) return;
+    const confirmed = confirm(
+      `Preparar ${formatMonthLabel(selectedMonth.label)} como mês novo?\n\n` +
+      "Isso zera pagamentos/recebimentos. Faturas, cartões e gastos variáveis podem ficar com valor R$ 0,00. Contas fixas como aluguel, internet, condomínio e financiamento ficam com valor mantido."
+    );
+    if (!confirmed) return;
+    resetCopiedMonth.mutate({
+      monthId: selectedMonthId,
+      keepFixedExpenseValues: resetKeepFixedValues,
+      zeroVariableExpenseValues: resetZeroVariableValues,
+      resetIncomeValues,
+      keepBankBalances: resetKeepBankBalances,
+      clearBankTransactions: resetClearBankTransactions,
+    });
+  };
+
   const csvCell = (value: unknown) => {
     const text = String(value ?? "");
     return `"${text.replace(/"/g, '""')}"`;
@@ -431,6 +469,19 @@ export default function Dashboard() {
                 title="Colar/importar informações no mês atual"
               >
                 <ClipboardPaste className="w-3.5 h-3.5" />
+              </Button>
+            )}
+
+            {selectedMonth && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowResetCopiedDialog(true)}
+                disabled={resetCopiedMonth.isPending}
+                className="h-10 w-10 shrink-0 p-0 text-blue-300 hover:text-blue-200 sm:h-8 sm:w-8"
+                title="Preparar mês copiado mantendo contas fixas"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
               </Button>
             )}
 
@@ -612,6 +663,65 @@ export default function Dashboard() {
           <DialogFooter className="gap-2">
             <Button variant="ghost" onClick={() => setShowCopyDialog(false)} className="text-gray-400 text-xs">Cancelar</Button>
             <Button onClick={handleCopyMonth} disabled={copyMonth.isPending} className="text-xs" >{copyMonth.isPending ? "Copiando..." : "Copiar dados"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showResetCopiedDialog} onOpenChange={setShowResetCopiedDialog}>
+        <DialogContent className="border border-border bg-card text-card-foreground sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-primary font-mono text-sm uppercase tracking-widest">Preparar mês copiado</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 text-xs font-mono text-gray-300">
+            <div className="rounded border border-blue-500/20 bg-blue-950/20 p-3 leading-5 text-blue-100">
+              Use isto depois de copiar Maio para Julho: mantém a estrutura das contas, mas limpa o que precisa começar zerado no novo mês.
+            </div>
+
+            <div className="grid grid-cols-1 gap-2 rounded border border-border bg-muted/30 p-3">
+              <label className="flex items-start gap-2">
+                <input type="checkbox" checked={resetKeepFixedValues} onChange={(event) => setResetKeepFixedValues(event.target.checked)} className="mt-1 accent-primary" />
+                <span>
+                  <span className="block text-white">Manter valores fixos</span>
+                  <span className="text-gray-500">Aluguel, internet, condomínio, financiamento, seguro e parcelas fixas continuam com valor.</span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2">
+                <input type="checkbox" checked={resetZeroVariableValues} onChange={(event) => setResetZeroVariableValues(event.target.checked)} className="mt-1 accent-primary" />
+                <span>
+                  <span className="block text-white">Zerar valores variáveis e faturas</span>
+                  <span className="text-gray-500">Cartões, faturas e gastos não fixos ficam em R$ 0,00 para preencher Julho do jeito certo.</span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2">
+                <input type="checkbox" checked={resetIncomeValues} onChange={(event) => setResetIncomeValues(event.target.checked)} className="mt-1 accent-primary" />
+                <span>
+                  <span className="block text-white">Zerar receitas copiadas</span>
+                  <span className="text-gray-500">Mantém os nomes das entradas, mas volta valor, recebido e banco para zero.</span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2">
+                <input type="checkbox" checked={resetKeepBankBalances} onChange={(event) => setResetKeepBankBalances(event.target.checked)} className="mt-1 accent-primary" />
+                <span>
+                  <span className="block text-white">Manter bancos e saldos</span>
+                  <span className="text-gray-500">As contas bancárias continuam aparecendo. Desmarque se quiser deixar todos os saldos em R$ 0,00.</span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2">
+                <input type="checkbox" checked={resetClearBankTransactions} onChange={(event) => setResetClearBankTransactions(event.target.checked)} className="mt-1 accent-primary" />
+                <span>
+                  <span className="block text-white">Limpar extrato do mês</span>
+                  <span className="text-gray-500">Remove movimentos antigos copiados para não parecer que Julho já teve pagamentos.</span>
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" onClick={() => setShowResetCopiedDialog(false)} className="text-gray-400 text-xs">Cancelar</Button>
+            <Button onClick={handleResetCopiedMonth} disabled={resetCopiedMonth.isPending} className="text-xs">
+              {resetCopiedMonth.isPending ? "Preparando..." : "Preparar mês"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -1433,6 +1433,33 @@ type CopyMonthOptions = {
   resetPaymentStatus?: boolean;
 };
 
+type ResetCopiedMonthOptions = {
+  keepFixedExpenseValues?: boolean;
+  zeroVariableExpenseValues?: boolean;
+  resetIncomeValues?: boolean;
+  keepBankBalances?: boolean;
+  clearBankTransactions?: boolean;
+};
+
+function normalizeSearchText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function isCardLikeExpense(cardName: string, itemName: string) {
+  const text = normalizeSearchText(`${cardName} ${itemName}`);
+  return /\b(cartao|cartoes|credito|fatura|nubank|nu|itau|inter|picpay|pic|c6|sofisa|xp|sam|caixa)\b/.test(text);
+}
+
+function isFixedMonthlyExpense(cardName: string, itemName: string) {
+  if (isCardLikeExpense(cardName, itemName)) return false;
+  const text = normalizeSearchText(`${cardName} ${itemName}`);
+  if (/\b(combustivel|gasolina|posto|feira|mercado|supermercado|pix|avulso|extra|programacao|caneca|canecas)\b/.test(text)) return false;
+  return /\b(aluguel|internet|condominio|financiamento|parcela casa|parcela da casa|parcela carro|carro|seguro|contabilidade|escritorio virtual|simples nacional|iptu|telefone)\b/.test(text);
+}
+
 async function clearMonthSections(monthId: number, options: { expenses?: boolean; income?: boolean; balances?: boolean }) {
   const db = await getDb();
   if (!db) {
@@ -1466,6 +1493,83 @@ async function clearMonthSections(monthId: number, options: { expenses?: boolean
   }
   if (options.income) await db.delete(incomeEntries).where(eq(incomeEntries.monthId, monthId));
   if (options.balances) await db.delete(bankBalances).where(eq(bankBalances.monthId, monthId));
+}
+
+export async function resetCopiedMonth(monthId: number, options: ResetCopiedMonthOptions = {}) {
+  const keepFixedExpenseValues = options.keepFixedExpenseValues ?? true;
+  const zeroVariableExpenseValues = options.zeroVariableExpenseValues ?? true;
+  const resetIncomeValues = options.resetIncomeValues ?? true;
+  const keepBankBalances = options.keepBankBalances ?? true;
+  const clearBankTransactions = options.clearBankTransactions ?? true;
+  let fixedKept = 0;
+  let variableZeroed = 0;
+  let incomeReset = 0;
+  let balancesReset = 0;
+  let transactionsCleared = 0;
+
+  const db = await getDb();
+  const cards = await getCardsByMonth(monthId);
+
+  for (const card of cards) {
+    const items = await getItemsByCard(card.id);
+    for (const item of items) {
+      const fixed = isFixedMonthlyExpense(card.name, item.name);
+      const nextValue = fixed && keepFixedExpenseValues
+        ? item.value
+        : zeroVariableExpenseValues
+          ? "0.00"
+          : item.value;
+      await updateItem(item.id, {
+        value: nextValue,
+        paidValue: "0.00",
+        paidAccountName: null,
+        paymentMode: "bank",
+        status: "pendente",
+      });
+      if (fixed && keepFixedExpenseValues) fixedKept += 1;
+      else if (nextValue === "0.00") variableZeroed += 1;
+    }
+  }
+
+  if (resetIncomeValues) {
+    const income = await getIncomeByMonth(monthId);
+    for (const entry of income) {
+      await updateIncome(entry.id, {
+        value: "0.00",
+        receivedValue: "0.00",
+        received: 0,
+        receivedAccountName: null,
+      });
+      incomeReset += 1;
+    }
+  }
+
+  if (!keepBankBalances) {
+    const balances = await getBalancesByMonth(monthId);
+    for (const balance of balances) {
+      await upsertBalance(monthId, balance.accountName, "0.00", balance.sortOrder ?? 0);
+      balancesReset += 1;
+    }
+  }
+
+  if (clearBankTransactions) {
+    if (!db) {
+      for (let index = memoryBankTransactions.length - 1; index >= 0; index -= 1) {
+        if (memoryBankTransactions[index].monthId === monthId) {
+          memoryBankTransactions.splice(index, 1);
+          transactionsCleared += 1;
+        }
+      }
+      persistMemoryData();
+    } else {
+      const existing = await listBankTransactions(monthId);
+      transactionsCleared = existing.length;
+      await db.delete(bankTransactions).where(eq(bankTransactions.monthId, monthId));
+    }
+  }
+
+  if (!db) persistMemoryData();
+  return { fixedKept, variableZeroed, incomeReset, balancesReset, transactionsCleared };
 }
 
 export async function copyMonthData(userId: number, sourceMonthId: number, options: CopyMonthOptions, organizationId?: number) {
